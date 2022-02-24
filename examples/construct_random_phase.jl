@@ -13,6 +13,10 @@ x = nodes[1]
 y = nodes[2]
 kˣ = wavenumbers[1]
 kʸ = wavenumbers[2]
+# construct filter
+kxmax = maximum(kˣ)
+kymax = maximum(kˣ)
+filter = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
 
 # now define the random field 
 wavemax = 3
@@ -24,13 +28,13 @@ A[A.==Inf] .= 0.0
 φ = 2π * rand(size(A)...)
 field = zeros(N, N)
 
+# Expensive
 function random_phase(field, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
     field .= 0.0
     for i in eachindex(𝓀ˣ), j in eachindex(𝓀ʸ)
         @. field += A[i, j] * cos(𝓀ˣ[i] * x + 𝓀ʸ[j] * y + φ[i, j])
     end
 end
-
 
 𝒯 = Transform(grid)
 field1 = field .+ 0 * im
@@ -57,6 +61,7 @@ s = similar(ψ)
 
 # source
 s = similar(ψ)
+@. s = cos(kˣ[5] * x)
 
 # phase
 φ̇ = similar(A)
@@ -66,44 +71,71 @@ s = similar(ψ)
 ∂y = im * kʸ
 Δ = @. ∂x^2 + ∂y^2
 
-# update 
-@. ψ = sin(kˣ[2] * x) * cos(kʸ[2] * y)
-ψ̂ = similar(ψ)
+# plan ffts
 P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
-# @benchmark P * ψ
-mul!(ψ̂, 𝒯.forward, ψ)
-ψ̂ .*= ∂x
-tmp = 𝒯.backward * ψ̂
-
-ℱ = 𝒯.forward
-ℱ⁻¹ = 𝒯.backward
-
-u .= -1.0 * ℱ⁻¹ * (∂y .* (ℱ * ψ))
-v .= ℱ⁻¹ * (∂x .* (ℱ * ψ))
-
-P * θ # in place fft
-∂ˣθ .= ℱ⁻¹ * (∂x .* θ)
-∂ʸθ .= ℱ⁻¹ * (∂y .* θ)
 
 ##
-κ = 1e-4
-Δt = 0.1
-@benchmark begin
-for i = 1:1
+κ = 1e-2 # 1e-4
+Δt = (x[2] - x[1]) / 4π
+
+ψ_save = typeof(real.(ψ))[]
+θ_save = typeof(real.(ψ))[]
+
+# take the initial condition as negative of the source
+@. s = cos(kˣ[5] * x)
+θ .= -s
+s .= 0.0
+tic = Base.time()
+for i = 1:1000
+    random_phase(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+    # spectral space representation 
     P * ψ # in place fft
-    u .= -1.0 * ℱ⁻¹ * (∂y .* ψ)
-    v .= ℱ⁻¹ * (∂x .* ψ)
     P * θ # in place fft
-    ∂ˣθ .= ℱ⁻¹ * (∂x .* θ)
-    ∂ʸθ .= ℱ⁻¹ * (∂y .* θ)
-    κΔθ .= κ * Δ * θ
+    # ∇ᵖψ
+    @. u = filter * -1.0 * (∂y * ψ) 
+    @. v = filter * (∂x * ψ) 
+    # ∇θ
+    @. ∂ˣθ = filter * ∂x * θ
+    @. ∂ʸθ = filter * ∂y * θ
+    @. κΔθ = κ * Δ * θ
+    # go back to real space 
+    P⁻¹ * ψ
+    P⁻¹ * θ
+    P⁻¹ * u
+    P⁻¹ * v
+    P⁻¹ * ∂ˣθ
+    P⁻¹ * ∂ʸθ
+    P⁻¹ * κΔθ
     # Assemble RHS
-    φ̇ .= 2π * rand(size(A)...)
-    @. θ̇ = u * ∂ˣθ + v * ∂ʸθ + κΔθ + s
+    φ̇ .= 2π * (rand(size(A)...) .- 1) * 0.01
+    @. θ̇ = -u * ∂ˣθ - v * ∂ʸθ + κΔθ + s
     # Euler step
     @. φ += sqrt(Δt) * φ̇
     @. θ += Δt * θ̇
-end
-end
 
+    # save output
+    if i % 10 == 0
+        push!(ψ_save, real.(ψ))
+        push!(θ_save, real.(θ))
+    end
+end
+toc = Base.time()
+println("the time for the simiulation was ", toc - tic, " seconds")
+
+##
+using GLMakie
+
+time_index = Observable(1)
+ψfield = @lift(ψ_save[$time_index])
+θfield = @lift(θ_save[$time_index])
+fig = Figure(resolution = (1722, 1076))
+ax = Axis(fig[1, 1]; title = "stream function ")
+ax2 = Axis(fig[1, 2]; title = "tracer concentration")
+heatmap!(ax, ψfield, interpolate = true, colormap = :balance, colorrange = (-1.5, 1.5))
+heatmap!(ax2, θfield, interpolate = true, colormap = :balance, colorrange = (-1.0, 1.0))
+display(fig)
+for i in eachindex(ψ_save)
+    sleep(0.1)
+    time_index[] = i
+end

@@ -4,7 +4,7 @@ include("transform.jl")
 # using GLMakie
 
 Ω = S¹(4π)^2
-N = 2^6
+N = 2^6 # number of gridpoints
 Nϕ = 11 # number of random phases
 @assert Nϕ < N
 grid = FourierGrid(N, Ω)
@@ -24,11 +24,13 @@ A[A.==Inf] .= 0.0
 φ = 2π * rand(size(A)...)
 field = zeros(N, N)
 
-function random_phase()
+function random_phase(field, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+    field .= 0.0
     for i in eachindex(𝓀ˣ), j in eachindex(𝓀ʸ)
         @. field += A[i, j] * cos(𝓀ˣ[i] * x + 𝓀ʸ[j] * y + φ[i, j])
     end
 end
+
 
 𝒯 = Transform(grid)
 field1 = field .+ 0 * im

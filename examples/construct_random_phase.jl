@@ -1,14 +1,20 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
-using FFTW, LinearAlgebra, BenchmarkTools
-include("transform.jl")
-# using GLMakie
+using FFTW, LinearAlgebra, BenchmarkTools, Random
+rng = MersenneTwister(1234)
+Random.seed!(123456789)
 
+include("transform.jl")
+include("random_phase_kernel.jl")
+# using GLMakie
+using CUDA
+arraytype = CuArray
 Ω = S¹(4π)^2
-N = 2^6 # number of gridpoints
+N = 2^10 # number of gridpoints
 Nϕ = 11 # number of random phases
 @assert Nϕ < N
-grid = FourierGrid(N, Ω)
-(; nodes, wavenumbers) = grid
+grid = FourierGrid(N, Ω, arraytype = arraytype)
+nodes, wavenumbers = grid.nodes, grid.wavenumbers
+
 x = nodes[1]
 y = nodes[2]
 kˣ = wavenumbers[1]
@@ -20,34 +26,18 @@ filter = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
 
 # now define the random field 
 wavemax = 3
-𝓀 = collect(-wavemax:0.5:wavemax)
+𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
 A = @. 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-11 / 12)
 A[A.==Inf] .= 0.0
-φ = 2π * rand(size(A)...)
-field = zeros(N, N)
-
-# Expensive
-function random_phase(field, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
-    field .= 0.0
-    for i in eachindex(𝓀ˣ), j in eachindex(𝓀ʸ)
-        @. field += A[i, j] * cos(𝓀ˣ[i] * x + 𝓀ʸ[j] * y + φ[i, j])
-    end
-end
-
-𝒯 = Transform(grid)
-field1 = field .+ 0 * im
-field2 = similar(field1)
-mul!(field2, 𝒯.forward, field1)
-
-# @benchmark mul!(field1, 𝒯.backward, field2)
-# @benchmark mul!(field1, 𝒯.backward, field2)
+φ = arraytype(2π * rand(size(A)...))
+field = arraytype(zeros(N, N))
 
 ##
 # Fields 
 # velocity
-ψ = zeros(ComplexF64, N, N)
+ψ = arraytype(zeros(ComplexF64, N, N))
 u = similar(ψ)
 v = similar(ψ)
 
@@ -58,6 +48,7 @@ v = similar(ψ)
 κΔθ = similar(ψ)
 θ̇ = similar(ψ)
 s = similar(ψ)
+θ̅ = similar(ψ)
 
 # source
 s = similar(ψ)
@@ -76,66 +67,73 @@ P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
 ##
-κ = 1e-2 # 1e-4
-Δt = (x[2] - x[1]) / 4π
+κ = 2/N  # roughly 1/N for this flow
+Δt = (x[2] - x[1]) / 10
 
-ψ_save = typeof(real.(ψ))[]
-θ_save = typeof(real.(ψ))[]
+ψ_save = typeof(real.(Array(ψ)))[]
+θ_save = typeof(real.(Array(ψ)))[]
 
 # take the initial condition as negative of the source
-@. s = cos(kˣ[5] * x)
-θ .= -s
-s .= 0.0
+kᶠ = kˣ[5]
+@. θ = cos(kᶠ * x) / (kᶠ)^2 / κ # scaling so that source is order 1
+θclims = extrema(Array(real.(θ))[:])
+P * θ # in place fft
+@. κΔθ = κ * Δ * θ
+P⁻¹ * κΔθ # in place fft
+s .= -κΔθ
+P⁻¹ * θ # in place fft
+θ̅ .= 0.0
+
 tic = Base.time()
-for i = 1:1000
-    random_phase(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
-    # spectral space representation 
-    P * ψ # in place fft
-    P * θ # in place fft
-    # ∇ᵖψ
-    @. u = filter * -1.0 * (∂y * ψ) 
-    @. v = filter * (∂x * ψ) 
-    # ∇θ
-    @. ∂ˣθ = filter * ∂x * θ
-    @. ∂ʸθ = filter * ∂y * θ
-    @. κΔθ = κ * Δ * θ
-    # go back to real space 
-    P⁻¹ * ψ
-    P⁻¹ * θ
-    P⁻¹ * u
-    P⁻¹ * v
-    P⁻¹ * ∂ˣθ
-    P⁻¹ * ∂ʸθ
-    P⁻¹ * κΔθ
-    # Assemble RHS
-    φ̇ .= 2π * (rand(size(A)...) .- 1) * 0.01
-    @. θ̇ = -u * ∂ˣθ - v * ∂ʸθ + κΔθ + s
+t = [0.0]
+tend = 5000 # 5000
+
+iend = ceil(Int, tend / Δt)
+
+params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter)
+
+size_of_A = size(A)
+
+for i = 1:iend
+    event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+    wait(event)
+    φ_rhs!(φ̇, φ, rng)
+    θ_rhs!(θ̇, θ, params)
     # Euler step
     @. φ += sqrt(Δt) * φ̇
     @. θ += Δt * θ̇
-
+    t[1] += Δt
     # save output
-    if i % 10 == 0
-        push!(ψ_save, real.(ψ))
-        push!(θ_save, real.(θ))
+
+    if i % div(iend, 10) == 0
+        println("Saving at i=", i)
+        push!(ψ_save, Array(real.(ψ)))
+        push!(θ_save, Array(real.(θ)))
+        println("extrema are ", extrema(θ_save[end]))
+        println("time is t = ", t[1])
     end
+    if t[1] > 1000
+        θ̅ .+= Δt * θ
+    end
+
+    if i % div(iend, 500) == 0
+        println("time is t = ", t[1])
+        local toc = Base.time()
+        println("the time for the simulation is ", toc - tic, " seconds")
+    end
+
 end
+
+θ̅ ./= t[1]
+
 toc = Base.time()
-println("the time for the simiulation was ", toc - tic, " seconds")
+println("the time for the simulation was ", toc - tic, " seconds")
 
-##
-using GLMakie
 
-time_index = Observable(1)
-ψfield = @lift(ψ_save[$time_index])
-θfield = @lift(θ_save[$time_index])
-fig = Figure(resolution = (1722, 1076))
-ax = Axis(fig[1, 1]; title = "stream function ")
-ax2 = Axis(fig[1, 2]; title = "tracer concentration")
-heatmap!(ax, ψfield, interpolate = true, colormap = :balance, colorrange = (-1.5, 1.5))
-heatmap!(ax2, θfield, interpolate = true, colormap = :balance, colorrange = (-1.0, 1.0))
-display(fig)
+#=
 for i in eachindex(ψ_save)
     sleep(0.1)
     time_index[] = i
 end
+=#
+

@@ -10,8 +10,6 @@ using CUDA
 arraytype = CuArray
 Ω = S¹(4π)^2
 N = 2^8 # number of gridpoints
-Nϕ = 11 # number of random phases
-@assert Nϕ < N
 grid = FourierGrid(N, Ω, arraytype = arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -70,14 +68,20 @@ P⁻¹ = plan_ifft!(ψ)
 κ = 2 / N  # roughly 1/N for this flow
 Δt = (x[2] - x[1]) / (4π)
 
-ψ_save = typeof(real.(Array(ψ)))[]
-θ_save = typeof(real.(Array(ψ)))[]
-
 # take the initial condition as negative of the source
-index_choices = 2:8
+# redo index 3
+index_choices = 21:80
+tic = Base.time()
+
 
 for index_choice in index_choices
+
+    # save some snapshots
+    ψ_save = typeof(real.(Array(ψ)))[]
+    θ_save = typeof(real.(Array(ψ)))[]
+
     kᶠ = kˣ[index_choice]
+
     @. θ = cos(kᶠ * x) / (kᶠ)^2 / κ # scaling so that source is order 1
     θclims = extrema(Array(real.(θ))[:])
     P * θ # in place fft
@@ -87,7 +91,6 @@ for index_choice in index_choices
     P⁻¹ * θ # in place fft
     θ̅ .= 0.0
 
-    tic = Base.time()
     t = [0.0]
     tend = 5000 # 5000
 

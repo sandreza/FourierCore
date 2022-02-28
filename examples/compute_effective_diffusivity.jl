@@ -49,7 +49,7 @@ lines!(ax, Array(kˣ[index_choices]), model_𝒦ᵉᶠᶠ.(Array(kˣ[index_choic
 
 wavenumberspace = model_𝒦ᵉᶠᶠ.(kˣ[:]) * length(x) / 2 # copy(x[:]) .* 0.0
 wavenumberspace[1] = 0.0
-wavenumberspace[div(length(x),2)+1] = 0.0
+wavenumberspace[div(length(x),2)+1] = 0.0 # need this because of redefinition of kˣ
 
 effective_diffusivity_mod = copy(effective_diffusivity)
 NKeff = length(effective_diffusivity_mod)

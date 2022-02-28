@@ -1,5 +1,5 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
-using FFTW, LinearAlgebra, BenchmarkTools, Random
+using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 
@@ -9,7 +9,7 @@ include("random_phase_kernel.jl")
 using CUDA
 arraytype = CuArray
 Ω = S¹(4π)^2
-N = 2^10 # number of gridpoints
+N = 2^8 # number of gridpoints
 Nϕ = 11 # number of random phases
 @assert Nϕ < N
 grid = FourierGrid(N, Ω, arraytype = arraytype)
@@ -67,68 +67,77 @@ P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
 ##
-κ = 2/N  # roughly 1/N for this flow
-Δt = (x[2] - x[1]) / 10
+κ = 2 / N  # roughly 1/N for this flow
+Δt = (x[2] - x[1]) / (4π)
 
 ψ_save = typeof(real.(Array(ψ)))[]
 θ_save = typeof(real.(Array(ψ)))[]
 
 # take the initial condition as negative of the source
-kᶠ = kˣ[5]
-@. θ = cos(kᶠ * x) / (kᶠ)^2 / κ # scaling so that source is order 1
-θclims = extrema(Array(real.(θ))[:])
-P * θ # in place fft
-@. κΔθ = κ * Δ * θ
-P⁻¹ * κΔθ # in place fft
-s .= -κΔθ
-P⁻¹ * θ # in place fft
-θ̅ .= 0.0
+index_choices = 2:8
 
-tic = Base.time()
-t = [0.0]
-tend = 5000 # 5000
+for index_choice in index_choices
+    kᶠ = kˣ[index_choice]
+    @. θ = cos(kᶠ * x) / (kᶠ)^2 / κ # scaling so that source is order 1
+    θclims = extrema(Array(real.(θ))[:])
+    P * θ # in place fft
+    @. κΔθ = κ * Δ * θ
+    P⁻¹ * κΔθ # in place fft
+    s .= -κΔθ
+    P⁻¹ * θ # in place fft
+    θ̅ .= 0.0
 
-iend = ceil(Int, tend / Δt)
+    tic = Base.time()
+    t = [0.0]
+    tend = 5000 # 5000
 
-params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter)
+    iend = ceil(Int, tend / Δt)
 
-size_of_A = size(A)
+    params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter)
 
-for i = 1:iend
-    event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
-    wait(event)
-    φ_rhs!(φ̇, φ, rng)
-    θ_rhs!(θ̇, θ, params)
-    # Euler step
-    @. φ += sqrt(Δt) * φ̇
-    @. θ += Δt * θ̇
-    t[1] += Δt
-    # save output
+    size_of_A = size(A)
 
-    if i % div(iend, 10) == 0
-        println("Saving at i=", i)
-        push!(ψ_save, Array(real.(ψ)))
-        push!(θ_save, Array(real.(θ)))
-        println("extrema are ", extrema(θ_save[end]))
-        println("time is t = ", t[1])
+    for i = 1:iend
+        event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+        wait(event)
+        φ_rhs!(φ̇, φ, rng)
+        θ_rhs!(θ̇, θ, params)
+        # Euler step
+        @. φ += sqrt(Δt) * φ̇
+        @. θ += Δt * θ̇
+        t[1] += Δt
+        # save output
+
+        if i % div(iend, 10) == 0
+            println("Saving at i=", i)
+            push!(ψ_save, Array(real.(ψ)))
+            push!(θ_save, Array(real.(θ)))
+            println("extrema are ", extrema(θ_save[end]))
+            println("time is t = ", t[1])
+        end
+
+        if t[1] > 1000
+            θ̅ .+= Δt * θ
+        end
+
+        if i % div(iend, 100) == 0
+            println("time is t = ", t[1])
+            local toc = Base.time()
+            println("the time for the simulation is ", toc - tic, " seconds")
+            println("extrema are ", extrema(real.(θ)))
+            println("on wavenumber index ", index_choice)
+        end
+
     end
-    if t[1] > 1000
-        θ̅ .+= Δt * θ
-    end
 
-    if i % div(iend, 500) == 0
-        println("time is t = ", t[1])
-        local toc = Base.time()
-        println("the time for the simulation is ", toc - tic, " seconds")
-    end
+    θ̅ ./= t[1]
 
+    toc = Base.time()
+    println("the time for the simulation was ", toc - tic, " seconds")
+    println("saving ", "tracer_" * string(index_choice) * ".jld2")
+    θ̅a = Array(real.(θ̅))
+    jldsave("tracer_" * string(index_choice) * ".jld2"; ψ_save, θ_save, θ̅a)
 end
-
-θ̅ ./= t[1]
-
-toc = Base.time()
-println("the time for the simulation was ", toc - tic, " seconds")
-
 
 #=
 for i in eachindex(ψ_save)

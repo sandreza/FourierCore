@@ -1,5 +1,5 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
-using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
+using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2, Statistics
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 jld_name = "high_res_tracer_"
@@ -9,7 +9,7 @@ include("random_phase_kernel.jl")
 using CUDA
 arraytype = CuArray
 Ω = S¹(4π)^2
-N = 2^9 # number of gridpoints
+N = 2^8 # number of gridpoints
 grid = FourierGrid(N, Ω, arraytype = arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -65,23 +65,22 @@ P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
 ##
-# κ = 2 / N  # roughly 1/N for this flow
-κ = 2 / 2^8 # fixed diffusivity
+κ = 2 / 2^8  # roughly 1/N for this flow
 Δt = (x[2] - x[1]) / (4π)
 
 # take the initial condition as negative of the source
 # redo index 3
-index_choices = 2:81
+index_choices = [1]
 tic = Base.time()
 
-
+tstart = 1000
 for index_choice in index_choices
 
     # save some snapshots
     ψ_save = typeof(real.(Array(ψ)))[]
     θ_save = typeof(real.(Array(ψ)))[]
 
-    kᶠ = kˣ[index_choice]
+    kᶠ = kˣ[2]
 
     @. θ = cos(kᶠ * x) / (kᶠ)^2 / κ # scaling so that source is order 1
     θclims = extrema(Array(real.(θ))[:])
@@ -90,6 +89,17 @@ for index_choice in index_choices
     P⁻¹ * κΔθ # in place fft
     s .= -κΔθ
     P⁻¹ * θ # in place fft
+
+    # construct initial condition for θ
+    event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+    wait(event)
+    φ_rhs!(φ̇, φ, rng)
+    P * ψ # in place fft
+    @. u = -1.0 * (∂y * ψ)
+    P⁻¹ * u
+    P⁻¹ * ψ
+    θ .= u
+
     θ̅ .= 0.0
 
     t = [0.0]
@@ -105,7 +115,7 @@ for index_choice in index_choices
         event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
         wait(event)
         φ_rhs!(φ̇, φ, rng)
-        θ_rhs!(θ̇, θ, params)
+        θ_rhs_zeroth!(θ̇, θ, params)
         # Euler step
         @. φ += sqrt(Δt) * φ̇
         @. θ += Δt * θ̇
@@ -120,8 +130,14 @@ for index_choice in index_choices
             println("time is t = ", t[1])
         end
 
-        if t[1] > 1000
-            θ̅ .+= Δt * θ
+        if t[1] >= tstart
+            P * ψ # in place fft
+            # ∇ᵖψ
+            @. u = -1.0 * (∂y * ψ)
+            P⁻¹ * u
+            P⁻¹ * ψ # in place fft
+
+            @. θ̅ += Δt * u * θ # direct accumation of fluxes, admittedly mislabed but w/e
         end
 
         if i % div(iend, 100) == 0
@@ -129,6 +145,7 @@ for index_choice in index_choices
             local toc = Base.time()
             println("the time for the simulation is ", toc - tic, " seconds")
             println("extrema are ", extrema(real.(θ)))
+            println(" the current ⟨θ̅⟩ is ", mean(θ̅))
             println("on wavenumber index ", index_choice)
         end
 
@@ -138,20 +155,11 @@ for index_choice in index_choices
 
     toc = Base.time()
     println("the time for the simulation was ", toc - tic, " seconds")
-    println("saving ", "tracer_" * string(index_choice) * ".jld2")
+    println("saving ", jld_name * string(index_choice) * ".jld2")
     θ̅a = Array(real.(θ̅))
     xnodes = Array(x)[:]
     ynodes = Array(y)[:]
     kˣ_wavenumbers = Array(kˣ)[:]
     kʸ_wavenumbers = Array(kˣ)[:]
-    source = Array(s)
-    jldsave(jld_name * string(index_choice) * ".jld2"; ψ_save, θ_save, θ̅a, κ, xnodes, ynodes, kˣ_wavenumbers, kʸ_wavenumbers, source)
+    jldsave(jld_name * string(index_choice) * ".jld2"; ψ_save, θ_save, θ̅a, κ, xnodes, ynodes, kˣ_wavenumbers, kʸ_wavenumbers)
 end
-
-#=
-for i in eachindex(ψ_save)
-    sleep(0.1)
-    time_index[] = i
-end
-=#
-

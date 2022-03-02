@@ -2,7 +2,7 @@ using GLMakie
 
 fig = Figure(resolution = (1722, 1076))
 effective_diffusivity = Float64[]
-for index_choice in 9:16
+for index_choice in 1:1
 
     jlfile = jldopen("tracer_" * string(index_choice) * ".jld2", "a+")
     ψ_save = jlfile["ψ_save"]
@@ -35,7 +35,7 @@ for index_choice in 9:16
 end
 
 display(fig)
-time_index[] = length(ψ_save)
+time_index[] = 10
 
 
 

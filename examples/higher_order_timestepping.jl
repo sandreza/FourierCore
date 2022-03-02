@@ -2,10 +2,9 @@ using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
-jld_name = "high_res_tracer_"
+jld_name = "high_order_timestep_spatial_tracer_"
 include("transform.jl")
 include("random_phase_kernel.jl")
-
 # using GLMakie
 using CUDA
 arraytype = CuArray
@@ -48,6 +47,11 @@ v = similar(ψ)
 θ̇ = similar(ψ)
 s = similar(ψ)
 θ̅ = similar(ψ)
+k₁ = similar(ψ)
+k₂ = similar(ψ)
+k₃ = similar(ψ)
+k₄ = similar(ψ)
+θ̃ = similar(ψ)
 
 # source
 s = similar(ψ)
@@ -72,7 +76,7 @@ P⁻¹ = plan_ifft!(ψ)
 
 # take the initial condition as negative of the source
 # redo index 3
-index_choices = 5:81
+index_choices = 3:10
 tic = Base.time()
 
 tstart = 1000
@@ -103,15 +107,33 @@ for index_choice in index_choices
     size_of_A = size(A)
 
     for i = 1:iend
+        # fourth order runge kutta on deterministic part
+        # keep ψ frozen is the correct way to do it here
 
-        event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
-        wait(event)
-        φ_rhs!(φ̇, φ, rng)
-        θ_rhs!(θ̇, θ, params)
-        # Euler step
+        # the below assumes that φ is just a function of time
+        θ_rhs_new!(k₁, θ, params)
+        @. θ̃ = θ + Δt * k₁ * 0.5
+    
+        φ_rhs_normal!(φ̇, φ, rng)
+        @. φ += sqrt(Δt / 2) * φ̇
+    
+        θ_rhs_new!(k₂, θ̃, params)
+        @. θ̃ = θ + Δt * k₂ * 0.5
+        θ_rhs_new!(k₃, θ̃, params)
+        @. θ̃ = θ + Δt * k₃
+
+        φ_rhs_normal!(φ̇, φ, rng)
+        @. φ += sqrt(Δt / 2) * φ̇
+
+        θ_rhs_new!(k₄, θ̃, params)
+        @. θ += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+    
+        # update stochastic part 
+        #=
+        φ_rhs_normal!(φ̇, φ, rng)
         @. φ += sqrt(Δt) * φ̇
-        @. θ += Δt * θ̇
-
+        =#
+    
         t[1] += Δt
         # save output
     
@@ -150,11 +172,4 @@ for index_choice in index_choices
     source = Array(s)
     jldsave(jld_name * string(index_choice) * ".jld2"; ψ_save, θ_save, θ̅a, κ, xnodes, ynodes, kˣ_wavenumbers, kʸ_wavenumbers, source)
 end
-
-#=
-for i in eachindex(ψ_save)
-    sleep(0.1)
-    time_index[] = i
-end
-=#
 

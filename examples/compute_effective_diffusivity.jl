@@ -14,7 +14,7 @@ y = nodes[2]
 kˣ = wavenumbers[1]
 kʸ = wavenumbers[2]
 
-
+bugfix = 5/4
 effective_diffusivity = Float64[]
 index_choices = 1:81
 for index_choice in index_choices
@@ -22,7 +22,7 @@ for index_choice in index_choices
     jlfile = jldopen(jld_name * string(index_choice) * ".jld2", "a+")
     ψ_save = jlfile["ψ_save"]
     θ_save = jlfile["θ_save"]
-    θ̅a = mean(jlfile["θ̅a"], dims = 2)[:] * 5 / 4
+    θ̅a = mean(jlfile["θ̅a"], dims = 2)[:] * bugfix # messed up for tracer_ okay for others
 
     # calculate effective diffusivity
     # factor of 2 comes from the fact that the domain is 4π (as opposed to 2π)

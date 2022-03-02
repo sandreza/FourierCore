@@ -73,7 +73,7 @@ P⁻¹ = plan_ifft!(ψ)
 # redo index 3
 index_choices = 2:81
 tic = Base.time()
-
+tstart = 1000
 
 for index_choice in index_choices
 
@@ -120,7 +120,7 @@ for index_choice in index_choices
             println("time is t = ", t[1])
         end
 
-        if t[1] > 1000
+        if t[1] >= tstart
             θ̅ .+= Δt * θ
         end
 

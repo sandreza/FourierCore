@@ -114,6 +114,34 @@ function θ_rhs_zeroth!(θ̇, θ, params)
     return nothing
 end
 
+function θ_rhs_convergent!(θ̇, θ, params)
+    ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter, uᶜ, vᶜ = params
+    P * ψ # in place fft
+    # ∇ᵖψ
+    @. u = filter * -1.0 * (∂y * ψ)
+    @. v = filter * (∂x * ψ)
+    P⁻¹ * u
+    P⁻¹ * v
+    # ∇⋅(u⃗ θ) + κΔ
+    @. ∂ˣuθ = (u + uᶜ) * θ
+    @. ∂ʸvθ = (v + vᶜ) * θ
+    P * ∂ˣuθ # in place fft
+    P * ∂ʸvθ # in place fft
+    P * θ  # in place fft
+    @. ∂ˣuθ = ∂x * ∂ˣuθ
+    @. ∂ʸvθ = ∂y * ∂ʸvθ
+    @. κΔθ = κ * Δ * θ
+    # go back to real space 
+    P⁻¹ * ∂ˣuθ
+    P⁻¹ * ∂ʸvθ
+    P⁻¹ * θ
+    P⁻¹ * κΔθ
+    P⁻¹ * ψ # technically not necessary
+    # Assemble RHS
+    @. θ̇ = -∂ˣuθ - ∂ʸvθ + κΔθ
+    return nothing
+end
+
 function φ_rhs!(φ̇, φ, rng)
     rand!(rng, φ̇) # can use randn(rng, φ̇); @. φ̇ *= sqrt(1/12)
     φ̇ .-= 0.5

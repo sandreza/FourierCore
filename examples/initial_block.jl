@@ -12,7 +12,7 @@ include("random_phase_kernel.jl")
 using CUDA
 arraytype = CuArray
 Ω = S¹(4π)^2
-N = 2^9 # number of gridpoints
+N = 2^10 # number of gridpoints
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -73,10 +73,11 @@ P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
 # number of gridpoints in transition is about λ * N / 2
-bump(x; λ= 10 / N) = 0.5 * (tanh((x + π / 4) / λ) - tanh((x - π / 4) / λ))
+bump(x; λ=10 / N, width = π/2) = 0.5 * (tanh((x + width / 2) / λ) - tanh((x - width / 2) / λ))
+bumps(x; λ=20 / N, width = 1.0) = 0.25 * (bump(x, λ = λ, width = width) + bump(x, λ = λ, width = 2.0*width) + bump(x, λ = λ, width = 3.0*width) + bump(x, λ = λ, width = 4.0*width))
 
 ##
-κ = 1.0 / N   # roughly 1/N for this flow
+κ = 1.0 / N * 2^(2)  # roughly 1/N for this flow
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
 Δt = (x[2] - x[1]) / (4π) * 5
@@ -89,7 +90,7 @@ tic = Base.time()
 θ_save = typeof(real.(Array(ψ)))[]
 
 r_A = Array(@. sqrt((x - 2π)^2 + (y - 2π)^2))
-θ_A = [bump(r_A[i, j]) for i in 1:N, j in 1:N]
+θ_A = [bumps(r_A[i, j]) for i in 1:N, j in 1:N]
 θ .= CuArray(θ_A)
 # @. θ = bump(sqrt(x^2 + y^2)) # scaling so that source is order 1
 θclims = extrema(Array(real.(θ))[:])
@@ -101,7 +102,7 @@ P⁻¹ * θ # in place fft
 θ̅ .= 0.0
 
 t = [0.0]
-tend = 5 # 5000
+tend = 20 # 5000
 
 iend = ceil(Int, tend / Δt)
 
@@ -109,7 +110,7 @@ params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻�
 
 size_of_A = size(A)
 
-realizations = 10000
+realizations = 1
 for j in 1:realizations
     θ .= CuArray(θ_A)
     for i = 1:iend
@@ -172,22 +173,28 @@ end
 toc = Base.time()
 println("the time for the simulation was ", toc - tic, " seconds")
 
+x_A = Array(x)[:] .- 2π
+θ_F = Array(real.(θ))
+θ̅_F = Array(real.(θ̅))
+
 fig = Figure(resolution=(2048, 512))
 ax1 = Axis(fig[1, 1], title="t = 0")
 ax2 = Axis(fig[1, 2], title="instantaneous t = " * string(tend))
 ax3 = Axis(fig[1, 4], title="ensemble average t = " * string(tend))
-x_A = Array(x)[:] .- 2π
-θ_F = Array(real.(θ))
-θ̅_F = Array(real.(θ̅))
 println("the extrema of the end field is ", extrema(θ_F))
 println("the extrema of the ensemble average is ", extrema(θ̅_F))
 colormap = :bone_1
+colormap = :nipy_spectral
 heatmap!(ax1, x_A, x_A, θ_A, colormap=colormap, colorrange=(0.0, 1.0), interpolate=true)
 hm = heatmap!(ax2, x_A, x_A, θ_F, colormap=colormap, colorrange=(0.0, 1.0), interpolate=true)
 hm_e = heatmap!(ax3, x_A, x_A, θ̅_F, colormap=colormap, colorrange=(0.0, 0.2), interpolate=true)
 Colorbar(fig[1, 3], hm, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
 Colorbar(fig[1, 5], hm_e, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
 display(fig)
+
+
+# indices = abs.(θ_F[:]) .> 1e-3;
+# hist(θ_F[indices])
 #=
 println("saving ", jld_name * string(index_choice) * ".jld2")
 θ̅a = Array(real.(θ̅))

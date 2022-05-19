@@ -34,7 +34,7 @@ Only works for fully periodic grids at the moment
 # Return
 A Fourier Grid object
 """
-function FourierGrid(grid_points::Tuple, Ω::Torus; arraytype = Array) # change to be fully general later
+function FourierGrid(grid_points::Tuple, Ω::Torus; arraytype = Array)
     @assert length(grid_points) == length(Ω.domains)
     grid = []
     k⃗ = []

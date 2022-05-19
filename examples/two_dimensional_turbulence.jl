@@ -1,12 +1,13 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
+using CUDA
 import FourierCore.OverEngineering: PointWiseSpectralOperator
 
 include("ode.jl")
 
-arraytype = Array
+arraytype = CuArray
 Ω = S¹(2π)^2
-N = 2^7 # number of gridpoints
+N = 2^4 # number of gridpoints
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 (; nodes, wavenumbers) = grid
 
@@ -79,7 +80,7 @@ function new_rhs!(dS, S, b)
 end
 
 # Create State array and unpack
-S = zeros(ComplexF64, size(ψ)..., 2)
+S = arraytype(zeros(ComplexF64, size(ψ)..., 2))
 ζ = view(S, :, :, 1)
 q = view(S, :, :, 2)
 

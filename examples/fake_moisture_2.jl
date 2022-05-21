@@ -1,7 +1,8 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
+using HDF5
 using GLMakie
-rng = MersenneTwister(1234)
+rng = MersenneTwister(12345)
 # Random.seed!(123456789)
 Random.seed!(12)
 # jld_name = "high_order_timestep_spatial_tracer_"
@@ -12,7 +13,7 @@ include("random_phase_kernel.jl")
 using CUDA
 arraytype = CuArray
 Ω = S¹(2π)^2
-N = 2^7 # number of gridpoints
+N = 2^10 # number of gridpoints
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -28,12 +29,12 @@ filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ 2 / 3 * kxmax
 @. filter = filter * (0 * abs(kˣ) .+ 1 * abs(kʸ) ≤ 2 / 3 * kxmax)
 
 # now define the random field 
-wavemax = 5
+wavemax = 4
 𝓀 = arraytype([-wavemax, wavemax]) # arraytype(1.0 .* [-wavemax, -wavemax + 1, wavemax - 1, wavemax])# arraytype(collect(-wavemax:1:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
 # A = @. 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-11 / 12)
-A = @. 1.0 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(0.0) # @. 1e-1 / (1 * 2 * wavemax^2) .* (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(0.0) # ( 1 .+ (0 .* 𝓀ˣ) .* 𝓀ʸ) 
+A = @. 1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(0.0) # @. 1e-1 / (1 * 2 * wavemax^2) .* (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(0.0) # ( 1 .+ (0 .* 𝓀ˣ) .* 𝓀ʸ) 
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N, N))
@@ -86,7 +87,7 @@ P⁻¹ = plan_ifft!(ψ)
 ##
 Δx = x[2] - x[1]
 Δt = Δx / (2π) * 1
-κ = 1.0 * Δx^2
+κ = 2.0 * Δx^2
 
 # Dissipation 
 𝒟 = @. κ * Δ - 1e-1 * (κ * Δ)^2 + 1e-3 * (κ * Δ)^3 - 1e-5 * (κ * Δ)^4
@@ -104,7 +105,7 @@ tic = Base.time()
 @. ζ = sin(3 * x) * sin(3 * y)
 
 t = [0.0]
-tend = 20 # 5000
+tend = 120 # 5000
 
 phase_speed = 1.0
 
@@ -112,7 +113,7 @@ iend = ceil(Int, tend / Δt)
 
 operators = (; P, P⁻¹, filter, Δ⁻¹, 𝒟, ∂x, ∂y)
 auxiliary = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, 𝒟θ, 𝒟ζ, sθ, sζ)
-constants = (; τ = 0.01, e = 0.01)
+constants = (; τ=4.0 * Δt, e=1e-2)# (; τ = 0.01, e = 0.01)
 
 parameters = (; auxiliary, operators, constants)
 
@@ -174,6 +175,13 @@ function rhs!(Ṡ, S, parameters)
     return nothing
 end
 
+include("interpolation.jl")
+filename = "higher_rez.hdf5"
+# rm(filename)
+fid = h5open(filename, "w")
+create_group(fid, "vorticity")
+create_group(fid, "moisture")
+saveindex = 0
 
 for i = 1:iend
     # fourth order runge-kutta on deterministic part
@@ -199,6 +207,13 @@ for i = 1:iend
 
     t[1] += Δt
     # save output
+    if t[1] > 40
+        if i % div(iend, 400) == 0
+            global saveindex += 1
+            fid["vorticity"][string(saveindex)] = quick_interpolation(ζ)
+            fid["moisture"][string(saveindex)] = quick_interpolation(θ)
+        end
+    end
 
     if i % div(iend, 100) == 0
         println("time is t = ", t[1])
@@ -211,6 +226,7 @@ for i = 1:iend
 
 end
 
+close(fid)
 
 toc = Base.time()
 println("the time for the simulation was ", toc - tic, " seconds")

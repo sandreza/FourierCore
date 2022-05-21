@@ -32,6 +32,5 @@ function wavenumbers(N; L = 2π)
     indices = up
     indices[div(N,2)+1:end] = down[div(N,2)+1:end]
     wavenumbers = 2π / L .* indices
-    wavenumbers[div(N,2)+1] = 0.0
     return wavenumbers
 end

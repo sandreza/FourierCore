@@ -12,7 +12,7 @@ include("random_phase_kernel.jl")
 using CUDA
 arraytype = CuArray
 Ω = S¹(2π)^2
-N = 2^7 # number of gridpoints
+N = 2^9 # number of gridpoints
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -29,11 +29,11 @@ filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ 2/3 * kxmax
 
 # now define the random field 
 wavemax = 5
-𝓀 = arraytype([-wavemax, wavemax]) # arraytype(1.0 .* [-wavemax, -wavemax + 1, wavemax - 1, wavemax])# arraytype(collect(-wavemax:1:wavemax))
+𝓀 = arraytype([-wavemax, 0, wavemax]) # arraytype(1.0 .* [-wavemax, -wavemax + 1, wavemax - 1, wavemax])# arraytype(collect(-wavemax:1:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
 # A = @. 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-11 / 12)
-A = @. 1.0 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(0.0) # @. 1e-1 / (1 * 2 * wavemax^2) .* (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(0.0) # ( 1 .+ (0 .* 𝓀ˣ) .* 𝓀ʸ) 
+A = @. 0.5 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(0.01) # @. 1e-1 / (1 * 2 * wavemax^2) .* (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(0.0) # ( 1 .+ (0 .* 𝓀ˣ) .* 𝓀ʸ) 
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N, N))
@@ -84,9 +84,7 @@ bumps(x; λ=20 / N, width=1.0) = 0.25 * (bump(x, λ=λ, width=width) + bump(x, �
 
 ##
 Δx = x[2] - x[1]
-κ = 1.0 / N * 0.1 # * 2^(2)  # roughly 1/N for this flow
-# κ = 2 / 2^8 # fixed diffusivity
-# κ = 2e-4
+
 Δt = Δx / (2π) * 1
 
 κ = 1.0 * Δx^2 # /Δt  # 1.0 / N * 0.1 # * 2^(2)  # roughly 1/N for this flow
@@ -112,7 +110,7 @@ P⁻¹ * θ # in place fft
 θ̅ .= 0.0
 
 t = [0.0]
-tend = 200 # 5000
+tend = 40 # 5000
 
 phase_speed = 1.0
 

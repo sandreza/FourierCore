@@ -26,11 +26,14 @@ kymax = maximum(kˣ)
 filter = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
 
 # now define the random field 
+phase_speed = 0.2 # default is 1.0
 wavemax = 3
 𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
-A = @. 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-11 / 12)
+inertial_exponent = -3.0
+stream_function_exponent = (inertial_exponent - 1) / 4;
+A = @. 0.2 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(stream_function_exponent)
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N, N))
@@ -73,12 +76,12 @@ P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
 # number of gridpoints in transition is about λ * N / 2
-bump(x; λ=10 / N, width = π/2) = 0.5 * (tanh((x + width / 2) / λ) - tanh((x - width / 2) / λ))
-bumps(x; λ=20 / N, width = 1.0) = 0.25 * (bump(x, λ = λ, width = width) + bump(x, λ = λ, width = 2.0*width) + bump(x, λ = λ, width = 3.0*width) + bump(x, λ = λ, width = 4.0*width))
+bump(x; λ=10 / N, width=π / 2) = 0.5 * (tanh((x + width / 2) / λ) - tanh((x - width / 2) / λ))
+bumps(x; λ=20 / N, width=1.0) = 0.25 * (bump(x, λ=λ, width=width) + bump(x, λ=λ, width=2.0 * width) + bump(x, λ=λ, width=3.0 * width) + bump(x, λ=λ, width=4.0 * width))
 
 ##
 Δx = x[2] - x[1]
-κ = Δx^2 
+κ = 1.0 * Δx^2 # 1.0 / N * 2^(2)  # roughly 1/N for this flow
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
 Δt = (Δx) / (4π) * 5
@@ -103,24 +106,45 @@ P⁻¹ * θ # in place fft
 θ̅ .= 0.0
 
 t = [0.0]
-tend = 5 
+tend = 100 # 5000
 
 iend = ceil(Int, tend / Δt)
+
+tlist = collect(0:tend)
+indlist = [ceil(Int, t / Δt) for t in tlist]
+indlist[1] = 1
+lagrangian_list = zeros(length(indlist))
+eulerian_list = copy(lagrangian_list)
 
 params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter)
 
 size_of_A = size(A)
 
 realizations = 100
+tmpA = []
 for j in 1:realizations
+
     # new realization of flow
-    rand!(rng, φ) # between 0, 1
-    φ .*= 2π # to make it a random phase
+    rand!(rng, φ)
+    φ .*= 2π
     event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
     wait(event)
-    t[1] = 0
 
-    θ .= CuArray(θ_A)
+    # get horizontal velocity
+    P * ψ
+    u0 = ∂y .* ψ
+    P⁻¹ * ψ
+    P⁻¹ * u0
+
+    # initialize tracer
+    θ .= u0
+    if (j == 1) | (j == realizations)
+        push!(tmpA, real.(Array(u)))
+    end
+
+    t[1] = 0.0
+
+    ii = 1
     for i = 1:iend
         # fourth order runge kutta on deterministic part
         # keep ψ frozen is the correct way to do it here
@@ -130,7 +154,7 @@ for j in 1:realizations
         @. θ̃ = θ + Δt * k₁ * 0.5
 
         φ_rhs_normal!(φ̇, φ, rng)
-        @. φ += sqrt(Δt / 2) * φ̇
+        @. φ += phase_speed * sqrt(Δt / 2) * φ̇
 
         θ_rhs_new!(k₂, θ̃, params)
         @. θ̃ = θ + Δt * k₂ * 0.5
@@ -138,40 +162,26 @@ for j in 1:realizations
         @. θ̃ = θ + Δt * k₃
 
         φ_rhs_normal!(φ̇, φ, rng)
-        @. φ += sqrt(Δt / 2) * φ̇
+        @. φ += phase_speed * sqrt(Δt / 2) * φ̇
 
         θ_rhs_new!(k₄, θ̃, params)
         @. θ += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
-        # update stochastic part 
-        # φ_rhs_normal!(φ̇, φ, rng)
-        # @. φ += sqrt(Δt) * φ̇
-
-
         t[1] += Δt
-        # save output
 
-        #=
-        if i % div(iend, 10) == 0
-            println("Saving at i=", i)
-            push!(ψ_save, Array(real.(ψ)))
-            push!(θ_save, Array(real.(θ)))
-            println("extrema are ", extrema(θ_save[end]))
-            println("time is t = ", t[1])
+        if i in indlist
+            # get horizontal velocity
+            P * ψ
+            @. u = ∂y * ψ
+            P⁻¹ * ψ
+            P⁻¹ * u
+        
+            lagrangian_list[ii] += real(mean(θ .* u0)) / realizations
+            eulerian_list[ii] += real(mean(u .* u0)) / realizations
+        
+            ii += 1
+            # println("saveing at ", i)
         end
-
-        if t[1] >= tstart
-            θ̅ .+= Δt * θ
-        end
-
-        if i % div(iend, 100) == 0
-            println("time is t = ", t[1])
-            local toc = Base.time()
-            println("the time for the simulation is ", toc - tic, " seconds")
-            println("extrema are ", extrema(real.(θ)))
-            println("on wavenumber index ", index_choice)
-        end
-        =#
 
     end
     println("finished realization ", j)
@@ -181,8 +191,19 @@ end
 toc = Base.time()
 println("the time for the simulation was ", toc - tic, " seconds")
 
+fig = Figure()
+ax = Axis(fig[1,1]; xlabel = "log10(time)", ylabel = "autocorrelation", xlabelsize =30, ylabelsize =30)
+
+logtlist = log10.(tlist .+1)
+ln1 = lines!(ax, logtlist, lagrangian_list, color=:blue, label = "Lagrangian")
+ln2 = lines!(ax, logtlist, eulerian_list, color=:orange, label = "Eulerian")
+axislegend(ax, position=:rc)
+display(fig)
+
+#=
 x_A = Array(x)[:] .- 2π
-θ_F = Array(real.(θ))
+θ_A = tmpA[1]
+θ_F = tmpA[2]
 θ̅_F = Array(real.(θ̅))
 
 fig = Figure(resolution=(2048, 512))
@@ -199,18 +220,4 @@ hm_e = heatmap!(ax3, x_A, x_A, θ̅_F, colormap=colormap, colorrange=(0.0, 0.2),
 Colorbar(fig[1, 3], hm, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
 Colorbar(fig[1, 5], hm_e, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
 display(fig)
-
-
-# indices = abs.(θ_F[:]) .> 1e-3;
-# hist(θ_F[indices])
-#=
-println("saving ", jld_name * string(index_choice) * ".jld2")
-θ̅a = Array(real.(θ̅))
-xnodes = Array(x)[:]
-ynodes = Array(y)[:]
-kˣ_wavenumbers = Array(kˣ)[:]
-kʸ_wavenumbers = Array(kˣ)[:]
-source = Array(s)
-jldsave(jld_name * string(index_choice) * ".jld2"; ψ_save, θ_save, θ̅a, κ, xnodes, ynodes, kˣ_wavenumbers, kʸ_wavenumbers, source)
 =#
-

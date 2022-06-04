@@ -70,4 +70,5 @@ for i in 1:M
     P! * uⁿ
 end
 
+
 contourf(plotmat)

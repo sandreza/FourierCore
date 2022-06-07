@@ -33,7 +33,7 @@ wavemax = 3
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
 inertial_exponent = -3.0
 stream_function_exponent = (inertial_exponent - 1) / 4;
-A = @. 0.2 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(stream_function_exponent)
+A = @. 1e-0 * 0.2 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(stream_function_exponent)
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N, N))
@@ -84,7 +84,7 @@ bumps(x; λ=20 / N, width=1.0) = 0.25 * (bump(x, λ=λ, width=width) + bump(x, �
 κ = 1.0 * Δx^2 # 1.0 / N * 2^(2)  # roughly 1/N for this flow
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
-Δt = (Δx) / (4π) * 5
+Δt = (Δx) / (4π) * 5 
 
 # take the initial condition as negative of the source
 tic = Base.time()
@@ -110,7 +110,9 @@ tend = 100 # 5000
 
 iend = ceil(Int, tend / Δt)
 
-tlist = collect(0:tend)
+scale = 1.0
+tendish = floor(Int, tend / (scale * Δt))
+tlist = cumsum(ones(tendish) .* Δt * scale)
 indlist = [ceil(Int, t / Δt) for t in tlist]
 indlist[1] = 1
 lagrangian_list = zeros(length(indlist))
@@ -194,9 +196,9 @@ println("the time for the simulation was ", toc - tic, " seconds")
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel = "log10(time)", ylabel = "autocorrelation", xlabelsize =30, ylabelsize =30)
 
-logtlist = log10.(tlist .+1)
-ln1 = lines!(ax, logtlist, lagrangian_list, color=:blue, label = "Lagrangian")
-ln2 = lines!(ax, logtlist, eulerian_list, color=:orange, label = "Eulerian")
+logtlist = log10.(tlist)
+ln1 = lines!(ax, logtlist[2:end], lagrangian_list[2:end], color=:blue, label = "Lagrangian")
+ln2 = lines!(ax, logtlist[2:end], eulerian_list[2:end], color=:orange, label = "Eulerian")
 axislegend(ax, position=:rc)
 display(fig)
 

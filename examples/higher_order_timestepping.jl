@@ -1,16 +1,21 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
+using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 # jld_name = "high_order_timestep_spatial_tracer_"
-jld_name = "delete_me_later"
+jld_name = "phase_speed_5_amplitude_factor_1"
 include("transform.jl")
 include("random_phase_kernel.jl")
 # using GLMakie
+save_fields = false
 using CUDA
 arraytype = CuArray
 Ω = S¹(4π)^2
-N = 2^9 # number of gridpoints
+N = 2^7 # number of gridpoints
+phase_speed = 5.0
+amplitude_factor = 2.0
+
 grid = FourierGrid(N, Ω, arraytype = arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -28,7 +33,7 @@ wavemax = 3
 𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
-A = @. 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-11 / 12)
+A = @. 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-11 / 12) * amplitude_factor
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N, N))
@@ -72,16 +77,17 @@ P⁻¹ = plan_ifft!(ψ)
 
 ##
 # κ = 2 / N  # roughly 1/N for this flow
-κ = 2 / 2^8 # fixed diffusivity
-κ = 2e-4
-Δt = (x[2] - x[1]) / (4π) * 5
+# κ = 2 / 2^8 # fixed diffusivity
+# κ = 2e-4
+κ = amplitude_factor * 2*Δx^2 
+Δt = (x[2] - x[1]) / (4π) * 5 / amplitude_factor
 
 # take the initial condition as negative of the source
-index_choices = 2:20
+index_choices = 2:80
 tic = Base.time()
 
 tstart = 1000
-for index_choice in index_choices
+for index_choice in ProgressBar(index_choices)
 
     # save some snapshots
     ψ_save = typeof(real.(Array(ψ)))[]
@@ -107,7 +113,7 @@ for index_choice in index_choices
 
     size_of_A = size(A)
 
-    for i = 1:iend
+    for i = ProgressBar(1:iend)
         # fourth order runge kutta on deterministic part
         # keep ψ frozen is the correct way to do it here
 
@@ -116,7 +122,7 @@ for index_choice in index_choices
         @. θ̃ = θ + Δt * k₁ * 0.5
     
         φ_rhs_normal!(φ̇, φ, rng)
-        @. φ += sqrt(Δt / 2) * φ̇
+        @. φ += phase_speed  * sqrt(Δt / 2) * φ̇
     
         θ_rhs_new!(k₂, θ̃, params)
         @. θ̃ = θ + Δt * k₂ * 0.5
@@ -124,7 +130,7 @@ for index_choice in index_choices
         @. θ̃ = θ + Δt * k₃
 
         φ_rhs_normal!(φ̇, φ, rng)
-        @. φ += sqrt(Δt / 2) * φ̇
+        @. φ += phase_speed  * sqrt(Δt / 2) * φ̇
 
         θ_rhs_new!(k₄, θ̃, params)
         @. θ += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
@@ -137,18 +143,20 @@ for index_choice in index_choices
         t[1] += Δt
         # save output
     
-        if i % div(iend, 10) == 0
-            println("Saving at i=", i)
-            push!(ψ_save, Array(real.(ψ)))
-            push!(θ_save, Array(real.(θ)))
-            println("extrema are ", extrema(θ_save[end]))
-            println("time is t = ", t[1])
+        if save_fields
+            if i % div(iend, 10) == 0
+                # println("Saving at i=", i)
+                push!(ψ_save, Array(real.(ψ)))
+                push!(θ_save, Array(real.(θ)))
+                # println("extrema are ", extrema(θ_save[end]))
+                # println("time is t = ", t[1])
+            end
         end
     
         if t[1] >= tstart
             θ̅ .+= Δt * θ
         end
-    
+        #=
         if i % div(iend, 100) == 0
             println("time is t = ", t[1])
             local toc = Base.time()
@@ -156,20 +164,25 @@ for index_choice in index_choices
             println("extrema are ", extrema(real.(θ)))
             println("on wavenumber index ", index_choice)
         end
+        =#
     
     end
 
     θ̅ ./= (t[end] - tstart)
 
     toc = Base.time()
-    println("the time for the simulation was ", toc - tic, " seconds")
-    println("saving ", jld_name * string(index_choice) * ".jld2")
+    # println("the time for the simulation was ", toc - tic, " seconds")
+    # println("saving ", jld_name * string(index_choice) * ".jld2")
     θ̅a = Array(real.(θ̅))
     xnodes = Array(x)[:]
     ynodes = Array(y)[:]
     kˣ_wavenumbers = Array(kˣ)[:]
     kʸ_wavenumbers = Array(kˣ)[:]
     source = Array(s)
-    jldsave(jld_name * string(index_choice) * ".jld2"; ψ_save, θ_save, θ̅a, κ, xnodes, ynodes, kˣ_wavenumbers, kʸ_wavenumbers, source)
+    if save_fields
+        jldsave(jld_name * string(index_choice) * ".jld2"; ψ_save, θ_save, θ̅a, κ, xnodes, ynodes, kˣ_wavenumbers, kʸ_wavenumbers, source)
+    else
+        jldsave(jld_name * string(index_choice) * ".jld2"; θ̅a, κ, xnodes, ynodes, kˣ_wavenumbers, kʸ_wavenumbers, source)
+    end
 end
 

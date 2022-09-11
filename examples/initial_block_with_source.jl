@@ -15,7 +15,7 @@ arraytype = CuArray
 N = 2^7 # number of gridpoints
 phase_speed = 5
 # eulerian decorrelation time is 24/phase_speed^2 
-amplitude_factor = 2 # sqrt(phase_speed)
+amplitude_factor = 2.0 # sqrt(phase_speed)
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -76,15 +76,15 @@ P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
 # number of gridpoints in transition is about λ * N / 2
-bump(x; λ=10 / N, width=π / 2) = 0.5 * (tanh((x + width / 2) / λ) - tanh((x - width / 2) / λ))
+bump(x; λ=20 / N, width=π / 2 ) = 0.5 * (tanh((x + width / 2) / λ) - tanh((x - width / 2) / λ))
 bumps(x; λ=20 / N, width=1.0) = 0.25 * (bump(x, λ=λ, width=width) + bump(x, λ=λ, width=2.0 * width) + bump(x, λ=λ, width=3.0 * width) + bump(x, λ=λ, width=4.0 * width))
 
 ##
 Δx = x[2] - x[1]
-κ = 2 * Δx^2 
+κ = amplitude_factor * 2*Δx^2 
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
-Δt = (Δx) / (4π) * 5
+Δt = (Δx) / (4π) * 5  / amplitude_factor 
 
 # take the initial condition as negative of the source
 tic = Base.time()
@@ -102,12 +102,12 @@ r_A = Array(@. sqrt((x - 2π)^2 + (y - 2π)^2))
 P * θ # in place fft
 @. κΔθ = κ * Δ * θ
 P⁻¹ * κΔθ # in place fft
-s .= -κΔθ * 0.0
+s .= -κΔθ 
 P⁻¹ * θ # in place fft
 θ̅ .= 0.0
 
 t = [0.0]
-tend = 5
+tend = 5 
 
 iend = ceil(Int, tend / Δt)
 
@@ -115,7 +115,7 @@ params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻�
 
 size_of_A = size(A)
 
-realizations = 100
+realizations = 10000
 
 θ̅_timeseries = CuArray(zeros(size(ψ)..., iend))
 
@@ -222,13 +222,22 @@ tindex = t_slider.value
 colormap = :bone_1
 field = @lift(Array(θ̅_timeseries[:, :, $tindex]))
 field_slice = @lift($field[:, floor(Int, N / 2)]) 
+
+# particular solution
+Δ_A = Array(Δ)
+KK = (κ) .* Δ_A
+KK[1] = 1.0
+s_A = Array(s)
+pS = ifft(fft(s_A) ./ (-KK))
+pS .+= mean(θ_A) 
+
 Δ_A = Array(Δ)
 colorrange = @lift((0, maximum($field)))
-Kᵉ = 0.3 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
-field_diffusion = @lift(real.(ifft(fft(θ_A) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt))))
+Kᵉ = effective_diffusivity[2] # 0.5 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
+field_diffusion = @lift(real.(ifft(fft(θ_A - pS * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS * κ/ Kᵉ))
 field_diffusion_slice = @lift($field_diffusion[:, floor(Int, N / 2)])
-KK = κ .* Δ_A
-approximate_field = @lift(real.(ifft(fft(θ_A) .* exp.(KK * ($tindex - 0) * Δt))))
+
+approximate_field = @lift(real.(ifft(fft(θ_A - pS) .* exp.(KK * ($tindex - 0) * Δt)) + pS))
 approximate_field_slice = @lift($approximate_field[:, floor(Int, N / 2)])
 heatmap!(ax11, x_A, x_A, field, colormap=colormap, interpolate=true, colorrange=colorrange)
 heatmap!(ax21, x_A, x_A, field_diffusion, colormap=colormap, interpolate=true, colorrange=colorrange)
@@ -236,49 +245,47 @@ heatmap!(ax22, x_A, x_A, approximate_field, colormap=colormap, interpolate=true,
 le = lines!(ax12, x_A, field_slice, color=:black)
 ld = lines!(ax12, x_A, field_diffusion_slice, color=:red)
 lnd = lines!(ax12, x_A, approximate_field_slice, color=:blue)
-axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity ", "diffusion", ], position=:rt)
+axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "nonlocal diffusivity "], position=:rt)
 display(fig)
 end
-##
 
 ##
 #=
-diffusivity_timeseries = copy(Array(θ̅_timeseries))
-nonlocal_timeseries = copy(Array(θ̅_timeseries))
-for i in 1:iend
-    diffusivity_timeseries[:, :, i] .= real.(ifft(fft(θ_A) .* exp.(Δ_A  * effective_diffusivity[2] * (i - 1) * Δt)))
-    nonlocal_timeseries[:, :, i] .= real.(ifft(fft(θ_A) .* exp.(KK * (i - 1) * Δt)))
+begin
+fig = Figure(resolution=(1400, 1100))
+ax11 = Axis(fig[1, 1]; title="ensemble average")
+ax12 = Axis(fig[1, 2]; title="x=0 slice")
+ax21 = Axis(fig[2, 1]; title="diffusion")
+ax22 = Axis(fig[2, 2]; title="nonlocal space kernel")
+t_slider = Slider(fig[3, 1:2], range=1:iend, startvalue=0)
+tindex = t_slider.value
+colormap = :bone_1
+field = @lift(Array(θ̅_timeseries[:, :, $tindex]))
+field_slice = @lift($field[:, floor(Int, N / 2)]) 
+
+# particular solution
+Δ_A = Array(Δ)
+KK = (effective_diffusivity_operator .+ κ) .* Δ_A
+KK[1] = 1.0
+s_A = Array(s)
+pS = ifft(fft(s_A) ./ (-KK))
+pS .+= mean(θ_A) 
+
+Δ_A = Array(Δ)
+colorrange = @lift((0, maximum($field)))
+Kᵉ = effective_diffusivity[2] # 0.5 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
+field_diffusion = @lift(real.(ifft(fft(θ_A - pS * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS * κ/ Kᵉ))
+field_diffusion_slice = @lift($field_diffusion[:, floor(Int, N / 2)])
+
+approximate_field = @lift(real.(ifft(fft(θ_A - pS) .* exp.(KK * ($tindex - 0) * Δt)) + pS))
+approximate_field_slice = @lift($approximate_field[:, floor(Int, N / 2)])
+heatmap!(ax11, x_A, x_A, field, colormap=colormap, interpolate=true, colorrange=colorrange)
+heatmap!(ax21, x_A, x_A, field_diffusion, colormap=colormap, interpolate=true, colorrange=colorrange)
+heatmap!(ax22, x_A, x_A, approximate_field, colormap=colormap, interpolate=true, colorrange=colorrange)
+le = lines!(ax12, x_A, field_slice, color=:black)
+ld = lines!(ax12, x_A, field_diffusion_slice, color=:red)
+lnd = lines!(ax12, x_A, approximate_field_slice, color=:blue)
+axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "nonlocal diffusivity "], position=:rt)
+display(fig)
 end
-fid = h5open("random_phase_block.hdf5", "w")
-fid["effective_diffusivity_operator"] = KK
-fid["ensemble_average_field"] = Array(θ̅_timeseries)
-fid["diffusivity_field"] = diffusivity_timeseries
-fid["nonlocal_field"] = nonlocal_timeseries
-close(fid)
 =#
-##
-#=
-framerate = 30
-timestamps = 1:iend
-GLMakie.record(fig, "time_animation_diffusivities.mp4", timestamps;
-    framerate=framerate) do t
-    tindex[] = t
-    nothing
-end;
-=#
-##
-
-
-# indices = abs.(θ_F[:]) .> 1e-3;
-# hist(θ_F[indices])
-#=
-println("saving ", jld_name * string(index_choice) * ".jld2")
-θ̅a = Array(real.(θ̅))
-xnodes = Array(x)[:]
-ynodes = Array(y)[:]
-kˣ_wavenumbers = Array(kˣ)[:]
-kʸ_wavenumbers = Array(kˣ)[:]
-source = Array(s)
-jldsave(jld_name * string(index_choice) * ".jld2"; ψ_save, θ_save, θ̅a, κ, xnodes, ynodes, kˣ_wavenumbers, kʸ_wavenumbers, source)
-=#
-

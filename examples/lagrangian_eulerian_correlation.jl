@@ -1,5 +1,6 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
+using ProgressBars
 using GLMakie
 rng = MersenneTwister(1234)
 # Random.seed!(123456789)
@@ -12,7 +13,7 @@ include("random_phase_kernel.jl")
 using CUDA
 arraytype = CuArray
 Ω = S¹(4π)^2
-N = 2^6 # number of gridpoints
+N = 2^7 # number of gridpoints
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -27,14 +28,15 @@ filter = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
 
 # now define the random field 
 # to make eulerian correspond to lagrangian requires random amplitudes and large scales
-phase_speed = 2.0 # 0.2 # default is 1.0, 0.2 for example case
-wavemax = 0.5
+phase_speed = 1.0 # 5.0 # 0.2 # default is 1.0, 0.2 for example case
+amplitude_factor = 1.0 #2.0 # 1e-1
+wavemax = 3 # 0.5
 𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
-inertial_exponent = -3.0
-stream_function_exponent = (inertial_exponent - 1) / 4;
-A = @. 1e-1 * 0.2 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(stream_function_exponent)
+inertial_exponent = -3.0 # 
+stream_function_exponent = -11/12 # (inertial_exponent - 1) / 4; # for using inertial exponent
+A = @. amplitude_factor * 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(stream_function_exponent)
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N, N))
@@ -82,10 +84,10 @@ bumps(x; λ=20 / N, width=1.0) = 0.25 * (bump(x, λ=λ, width=width) + bump(x, �
 
 ##
 Δx = x[2] - x[1]
-κ = 1.0 * Δx^2 # 1.0 / N * 2^(2)  # roughly 1/N for this flow
+κ = amplitude_factor * 2.0 * Δx^2 # 1.0 / N * 2^(2)  # roughly 1/N for this flow
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
-Δt = (Δx) / (4π) * 5
+Δt = (Δx) / (4π) * 5 / amplitude_factor
 
 # take the initial condition as negative of the source
 tic = Base.time()
@@ -125,7 +127,7 @@ size_of_A = size(A)
 println("starting simulations")
 realizations = 100
 tmpA = []
-for j in 1:realizations
+for j in ProgressBar(1:realizations)
 
     # new realization of flow
     rand!(rng, φ)
@@ -187,7 +189,7 @@ for j in 1:realizations
         end
 
     end
-    println("finished realization ", j)
+    # println("finished realization ", j)
     @. θ̅ += θ / realizations
 end
 
@@ -200,7 +202,7 @@ ax = Axis(fig[1, 1]; xlabel="log10(time)", ylabel="autocorrelation", xlabelsize=
 logtlist = log10.(tlist)
 ln1 = lines!(ax, logtlist[2:end], lagrangian_list[2:end], color=:blue, label="Lagrangian")
 ln2 = lines!(ax, logtlist[2:end], eulerian_list[2:end], color=:orange, label="Eulerian")
-axislegend(ax, position=:rc)
+axislegend(ax, position=:rt)
 display(fig)
 
 
@@ -211,8 +213,8 @@ ln1 = lines!(ax, tlist[2:end], lagrangian_list[2:end], color=:blue, label="Lagra
 ln2 = lines!(ax, tlist[2:end], eulerian_list[2:end], color=:orange, label="Eulerian")
 # the factor of 12 comes from the sqrt(1/12) factor in the random phase definition and the 1/2 comes from 
 # fokker-planck nonsense of factors of two
-ln3 = lines!(ax, tlist[2:end], eulerian_list[1] .* exp.(-phase_speed^2 ./ 24 .* tlist[2:end]), color=:red, label="Eulerian Analytic")
-axislegend(ax, position=:rc)
+ln3 = lines!(ax, tlist[2:end], eulerian_list[1] .* exp.(-phase_speed^2 ./ 24 .* tlist[1:end-1]), color=:red, label="Eulerian Analytic")
+axislegend(ax, position=:rt)
 display(fig)
 
 #=

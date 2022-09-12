@@ -76,15 +76,15 @@ P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
 # number of gridpoints in transition is about λ * N / 2
-bump(x; λ=20 / N, width=π / 2 ) = 0.5 * (tanh((x + width / 2) / λ) - tanh((x - width / 2) / λ))
+bump(x; λ=20 / N, width=π / 2) = 0.5 * (tanh((x + width / 2) / λ) - tanh((x - width / 2) / λ))
 bumps(x; λ=20 / N, width=1.0) = 0.25 * (bump(x, λ=λ, width=width) + bump(x, λ=λ, width=2.0 * width) + bump(x, λ=λ, width=3.0 * width) + bump(x, λ=λ, width=4.0 * width))
 
 ##
 Δx = x[2] - x[1]
-κ = amplitude_factor * 2*Δx^2 
+κ = amplitude_factor * 2 * Δx^2
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
-Δt = (Δx) / (4π) * 5  / amplitude_factor 
+Δt = (Δx) / (4π) * 5 / amplitude_factor
 
 # take the initial condition as negative of the source
 tic = Base.time()
@@ -102,12 +102,12 @@ r_A = Array(@. sqrt((x - 2π)^2 + (y - 2π)^2))
 P * θ # in place fft
 @. κΔθ = κ * Δ * θ
 P⁻¹ * κΔθ # in place fft
-s .= -κΔθ 
+s .= -κΔθ
 P⁻¹ * θ # in place fft
 θ̅ .= 0.0
 
 t = [0.0]
-tend = 5 
+tend = 5
 
 iend = ceil(Int, tend / Δt)
 
@@ -194,59 +194,59 @@ x_A = Array(x)[:] .- 2π
 θ̅_F = Array(real.(θ̅))
 
 begin
-fig = Figure(resolution=(2048, 512))
-ax1 = Axis(fig[1, 1], title="t = 0")
-ax2 = Axis(fig[1, 2], title="instantaneous t = " * string(tend))
-ax3 = Axis(fig[1, 4], title="ensemble average t = " * string(tend))
-println("the extrema of the end field is ", extrema(θ_F))
-println("the extrema of the ensemble average is ", extrema(θ̅_F))
-colormap = :bone_1
-# colormap = :nipy_spectral
-heatmap!(ax1, x_A, x_A, θ_A, colormap=colormap, colorrange=(0.0, 1.0), interpolate=true)
-hm = heatmap!(ax2, x_A, x_A, θ_F, colormap=colormap, colorrange=(0.0, 1.0), interpolate=true)
-hm_e = heatmap!(ax3, x_A, x_A, θ̅_F, colormap=colormap, colorrange=(0.0, 0.2), interpolate=true)
-Colorbar(fig[1, 3], hm, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
-Colorbar(fig[1, 5], hm_e, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
-display(fig)
+    fig = Figure(resolution=(2048, 512))
+    ax1 = Axis(fig[1, 1], title="t = 0")
+    ax2 = Axis(fig[1, 2], title="instantaneous t = " * string(tend))
+    ax3 = Axis(fig[1, 4], title="ensemble average t = " * string(tend))
+    println("the extrema of the end field is ", extrema(θ_F))
+    println("the extrema of the ensemble average is ", extrema(θ̅_F))
+    colormap = :bone_1
+    # colormap = :nipy_spectral
+    heatmap!(ax1, x_A, x_A, θ_A, colormap=colormap, colorrange=(0.0, 1.0), interpolate=true)
+    hm = heatmap!(ax2, x_A, x_A, θ_F, colormap=colormap, colorrange=(0.0, 1.0), interpolate=true)
+    hm_e = heatmap!(ax3, x_A, x_A, θ̅_F, colormap=colormap, colorrange=(0.0, 0.2), interpolate=true)
+    Colorbar(fig[1, 3], hm, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
+    Colorbar(fig[1, 5], hm_e, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
+    display(fig)
 end
 
 ##
 begin
-fig = Figure(resolution=(1400, 1100))
-ax11 = Axis(fig[1, 1]; title="ensemble average")
-ax12 = Axis(fig[1, 2]; title="x=0 slice")
-ax21 = Axis(fig[2, 1]; title="diffusion")
-ax22 = Axis(fig[2, 2]; title="nonlocal space kernel")
-t_slider = Slider(fig[3, 1:2], range=1:iend, startvalue=0)
-tindex = t_slider.value
-colormap = :bone_1
-field = @lift(Array(θ̅_timeseries[:, :, $tindex]))
-field_slice = @lift($field[:, floor(Int, N / 2)]) 
+    fig = Figure(resolution=(1400, 1100))
+    ax11 = Axis(fig[1, 1]; title="ensemble average")
+    ax12 = Axis(fig[1, 2]; title="x=0 slice")
+    ax21 = Axis(fig[2, 1]; title="diffusion")
+    ax22 = Axis(fig[2, 2]; title="nonlocal space kernel")
+    t_slider = Slider(fig[3, 1:2], range=1:iend, startvalue=0)
+    tindex = t_slider.value
+    colormap = :bone_1
+    field = @lift(Array(θ̅_timeseries[:, :, $tindex]))
+    field_slice = @lift($field[:, floor(Int, N / 2)])
 
-# particular solution
-Δ_A = Array(Δ)
-KK = (κ) .* Δ_A
-KK[1] = 1.0
-s_A = Array(s)
-pS = ifft(fft(s_A) ./ (-KK))
-pS .+= mean(θ_A) 
+    # particular solution
+    Δ_A = Array(Δ)
+    KK = (κ) .* Δ_A
+    KK[1] = 1.0
+    s_A = Array(s)
+    pS = ifft(fft(s_A) ./ (-KK))
+    pS .+= mean(θ_A)
 
-Δ_A = Array(Δ)
-colorrange = @lift((0, maximum($field)))
-Kᵉ = effective_diffusivity[2] # 0.5 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
-field_diffusion = @lift(real.(ifft(fft(θ_A - pS * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS * κ/ Kᵉ))
-field_diffusion_slice = @lift($field_diffusion[:, floor(Int, N / 2)])
+    Δ_A = Array(Δ)
+    colorrange = @lift((0, maximum($field)))
+    Kᵉ = effective_diffusivity[2] # 0.5 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
+    field_diffusion = @lift(real.(ifft(fft(θ_A - pS * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS * κ / Kᵉ))
+    field_diffusion_slice = @lift($field_diffusion[:, floor(Int, N / 2)])
 
-approximate_field = @lift(real.(ifft(fft(θ_A - pS) .* exp.(KK * ($tindex - 0) * Δt)) + pS))
-approximate_field_slice = @lift($approximate_field[:, floor(Int, N / 2)])
-heatmap!(ax11, x_A, x_A, field, colormap=colormap, interpolate=true, colorrange=colorrange)
-heatmap!(ax21, x_A, x_A, field_diffusion, colormap=colormap, interpolate=true, colorrange=colorrange)
-heatmap!(ax22, x_A, x_A, approximate_field, colormap=colormap, interpolate=true, colorrange=colorrange)
-le = lines!(ax12, x_A, field_slice, color=:black)
-ld = lines!(ax12, x_A, field_diffusion_slice, color=:red)
-lnd = lines!(ax12, x_A, approximate_field_slice, color=:blue)
-axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "nonlocal diffusivity "], position=:rt)
-display(fig)
+    approximate_field = @lift(real.(ifft(fft(θ_A - pS) .* exp.(KK * ($tindex - 0) * Δt)) + pS))
+    approximate_field_slice = @lift($approximate_field[:, floor(Int, N / 2)])
+    heatmap!(ax11, x_A, x_A, field, colormap=colormap, interpolate=true, colorrange=colorrange)
+    heatmap!(ax21, x_A, x_A, field_diffusion, colormap=colormap, interpolate=true, colorrange=colorrange)
+    heatmap!(ax22, x_A, x_A, approximate_field, colormap=colormap, interpolate=true, colorrange=colorrange)
+    le = lines!(ax12, x_A, field_slice, color=:black)
+    ld = lines!(ax12, x_A, field_diffusion_slice, color=:red)
+    lnd = lines!(ax12, x_A, approximate_field_slice, color=:blue)
+    axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "nonlocal diffusivity "], position=:rt)
+    display(fig)
 end
 
 ##
@@ -271,10 +271,15 @@ s_A = Array(s)
 pS = ifft(fft(s_A) ./ (-KK))
 pS .+= mean(θ_A) 
 
+tmpKK = -κ .* Δ_A 
+tmpKK[1] = 1.0
+pS_local = ifft(fft(s_A) ./ tmpKK)
+pS_local .+= mean(θ_A) 
+
 Δ_A = Array(Δ)
 colorrange = @lift((0, maximum($field)))
 Kᵉ = effective_diffusivity[2] # 0.5 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
-field_diffusion = @lift(real.(ifft(fft(θ_A - pS * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS * κ/ Kᵉ))
+field_diffusion = @lift(real.(ifft(fft(θ_A - pS_local * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS_local * κ/ Kᵉ))
 field_diffusion_slice = @lift($field_diffusion[:, floor(Int, N / 2)])
 
 approximate_field = @lift(real.(ifft(fft(θ_A - pS) .* exp.(KK * ($tindex - 0) * Δt)) + pS))
@@ -288,4 +293,30 @@ lnd = lines!(ax12, x_A, approximate_field_slice, color=:blue)
 axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "nonlocal diffusivity "], position=:rt)
 display(fig)
 end
+##
+diffusivity_timeseries = copy(Array(θ̅_timeseries))
+nonlocal_timeseries = copy(Array(θ̅_timeseries))
+for i in 1:iend
+    diffusivity_timeseries[:, :, i] .= real.(ifft(fft(θ_A - pS_local * κ / Kᵉ) .* exp.(Δ_A * (i - 0) * Kᵉ * Δt)) + pS_local * κ/ Kᵉ)
+    nonlocal_timeseries[:, :, i] .= real.(ifft(fft(θ_A - pS) .* exp.(KK * (i- 0) * Δt)) + pS)
+end
+fid = h5open("random_phase_block_with_source.hdf5", "w")
+fid["effective_diffusivity_operator"] = KK
+fid["effective_diffusivity"] = effective_diffusivity[1:40]
+fid["molecular_diffusivity"] = κ
+fid["effective_local_diffusivity_operator"] = Kᵉ * Δ_A
+fid["initial_condition_t0"] = Array(θ_A)
+fid["ensemble_average_field"] = Array(θ̅_timeseries)
+fid["diffusivity_field"] = diffusivity_timeseries
+fid["nonlocal_field"] = nonlocal_timeseries
+fid["x"] = x_A
+fid["y"] = x_A
+fid["streamfunction_amplitude"] = Array(A)
+fid["phase increase"] = phase_factor 
+fid["time"] = collect(Δt * (1:iend))
+fid["source"] = real.(s_A)
+fid["local_long_time_limit"] = real.(pS_local)
+fid["nonlocal_long_time_limit"] = real.(pS)
+close(fid)
+
 =#

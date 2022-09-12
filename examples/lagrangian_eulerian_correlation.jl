@@ -28,8 +28,8 @@ filter = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
 
 # now define the random field 
 # to make eulerian correspond to lagrangian requires random amplitudes and large scales
-phase_speed = 1.0 # 5.0 # 0.2 # default is 1.0, 0.2 for example case
-amplitude_factor = 1.0 #2.0 # 1e-1
+phase_speed = 5.0 # 5.0 # 0.2 # default is 1.0, 0.2 for example case
+amplitude_factor = 2.0 #2.0 # 1e-1
 wavemax = 3 # 0.5
 𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
@@ -209,7 +209,7 @@ display(fig)
 fig = Figure()
 ax = Axis(fig[1, 1]; xlabel="time", ylabel="autocorrelation", xlabelsize=30, ylabelsize=30)
 
-ln1 = lines!(ax, tlist[2:end], lagrangian_list[2:end], color=:blue, label="Lagrangian")
+ln1 = lines!(ax, tlist[2:end], lagrangian_list[1:end-1], color=:blue, label="Lagrangian")
 ln2 = lines!(ax, tlist[2:end], eulerian_list[2:end], color=:orange, label="Eulerian")
 # the factor of 12 comes from the sqrt(1/12) factor in the random phase definition and the 1/2 comes from 
 # fokker-planck nonsense of factors of two

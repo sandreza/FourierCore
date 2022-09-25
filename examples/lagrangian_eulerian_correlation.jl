@@ -121,7 +121,7 @@ indlist[1] = 1
 lagrangian_list = zeros(length(indlist))
 eulerian_list = copy(lagrangian_list)
 
-params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter)
+sim_params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter)
 
 size_of_A = size(A)
 println("starting simulations")
@@ -155,21 +155,21 @@ for j in ProgressBar(1:realizations)
         # keep ψ frozen is the correct way to do it here
 
         # the below assumes that φ is just a function of time
-        θ_rhs_new!(k₁, θ, params)
+        θ_rhs_new!(k₁, θ, sim_params)
         @. θ̃ = θ + Δt * k₁ * 0.5
 
         φ_rhs_normal!(φ̇, φ, rng)
         @. φ += phase_speed * sqrt(Δt / 2) * φ̇
 
-        θ_rhs_new!(k₂, θ̃, params)
+        θ_rhs_new!(k₂, θ̃, sim_params)
         @. θ̃ = θ + Δt * k₂ * 0.5
-        θ_rhs_new!(k₃, θ̃, params)
+        θ_rhs_new!(k₃, θ̃, sim_params)
         @. θ̃ = θ + Δt * k₃
 
         φ_rhs_normal!(φ̇, φ, rng)
         @. φ += phase_speed * sqrt(Δt / 2) * φ̇
 
-        θ_rhs_new!(k₄, θ̃, params)
+        θ_rhs_new!(k₄, θ̃, sim_params)
         @. θ += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
         t[1] += Δt
@@ -214,6 +214,7 @@ ln2 = lines!(ax, tlist[2:end], eulerian_list[2:end], color=:orange, label="Euler
 # the factor of 12 comes from the sqrt(1/12) factor in the random phase definition and the 1/2 comes from 
 # fokker-planck nonsense of factors of two
 ln3 = lines!(ax, tlist[2:end], eulerian_list[1] .* exp.(-phase_speed^2 ./ 24 .* tlist[1:end-1]), color=:red, label="Eulerian Analytic")
+ln3 = lines!(ax, tlist[2:end], eulerian_list[1] .* exp.(-1.0 .* tlist[1:end-1]), color=:red, label="Eulerian Analytic")
 axislegend(ax, position=:rt)
 display(fig)
 

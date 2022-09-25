@@ -8,6 +8,12 @@ jld_name = "quick_calculation"
 jld_name = "phase_speed_10_"
 jld_name = "phase_speed_10_amplitude_factor_3"
 jld_name = "phase_speed_5_amplitude_factor_1"
+jld_name = "default_streamfunction_"
+
+phase_speed = 1.0
+amplitude_factor = sqrt(2)
+jld_name = "streamfunction_amp_factor_" * string(amplitude_factor) * "_phase_speed_" * string(phase_speed) * "_"
+
 index_choice = 2
 jlfile = jldopen(jld_name * string(index_choice) * ".jld2", "a+")
 κ = jlfile["κ"]
@@ -32,11 +38,11 @@ if jld_name == "tracer_"
     extrapolate = true # only works if zeroth mode is included
 else
     bugfix = 1
-    extrapolate = true # true # only works if zeroth mode is included
+    extrapolate = false # true # only works if zeroth mode is included
 end
 
 effective_diffusivity = Float64[]
-index_choices = 2:45
+index_choices = 2:2
 
 for index_choice in index_choices
     println("on index ", index_choice)
@@ -104,7 +110,7 @@ if extrapolate
     c = (1 / effective_diffusivity[tail_index+1] - a) / (kˣ[tail_index+2]^2 - kˣ[tail_index+1]^2)
     # model_𝒦ᵉᶠᶠ(k) = 1 / (a + c * (k^2 - k₀^2))
     shift_index = 4
-    slope_index = index_choices[end-1] 
+    slope_index = index_choices[end-1]
     # slope_index = maximum([index_choices[end] - 4, shift_index + 2])
 
     logk = log.(kˣ[2:length(effective_diffusivity)+1])
@@ -135,7 +141,7 @@ if extrapolate
     wavenumberspace = model_𝒦ᵉᶠᶠ.(hr_kˣ[:]) * fft_scaling # copy(x[:]) .* 0.0
     wavenumberspace[1] = effective_diffusivity[1] * fft_scaling
     wavenumberspace[div(length(hr_x), 2)+1] = 0.0 # need this because of redefinition of kˣ
-                   println("hello 2")
+    println("hello 2")
     effective_diffusivity_mod = copy(effective_diffusivity[2:end])
     # effective_diffusivity_mod = copy(effective_diffusivity_mod[2:slope_index])
 
@@ -143,7 +149,7 @@ if extrapolate
     wavenumberspace[2:1+NKeff] .= effective_diffusivity_mod * fft_scaling
     wavenumberspace[length(hr_x)-NKeff+1:end] .= reverse(effective_diffusivity_mod) * fft_scaling
     realspace = real.(ifft(wavenumberspace))
-  
+
     # realspace = real.(ifft([0.0, effective_diffusivity..., reverse(effective_diffusivity)...]))
     index_shift = div(length(hr_x), 2) # div(length(realspace) - 1, 2) # div(length(x),2)
     realspace_shifted = circshift(realspace, index_shift) # .- minimum(realspace)

@@ -16,13 +16,15 @@ N = 2^7 # number of gridpoints
 phase_speed = 1.0
 amplitude_factor = 10.0
 
-filename = "effective_diffusivities.h5"
+filename = "effective_diffusivities_samples_100.h5"
 fid = h5open(filename, "w")
 create_group(fid, "effective_diffusivities")
 create_group(fid, "amplitude_factor")
 
 
-for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
+# for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
+for di in ProgressBar(1:100)
+amplitude_factor = 0.5
 
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
@@ -138,7 +140,7 @@ maxind = minimum([40, floor(Int, N/4)])
 index_choices = 2:maxind
 tic = Base.time()
 
-tstart = 1000
+tstart = 100
 s .*= 0.0
 for index_choice in ProgressBar(index_choices)
     kᶠ = kˣ[index_choice]
@@ -150,7 +152,7 @@ for index_choice in ProgressBar(index_choices)
 end
 
 t = [0.0]
-tend = 3*5000 # 5000
+tend = 500 # 5000
 
 iend = ceil(Int, tend / Δt)
 

@@ -4,7 +4,7 @@ using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 # jld_name = "high_order_timestep_spatial_tracer_"
-jld_name = "phase_speed_5_amplitude_factor_1"
+jld_name = "default_streamfunction_"
 include("transform.jl")
 include("random_phase_kernel.jl")
 # using GLMakie
@@ -13,10 +13,12 @@ using CUDA
 arraytype = CuArray
 Ω = S¹(4π)^2
 N = 2^7 # number of gridpoints
-phase_speed = 5.0
-amplitude_factor = 2.0
+phase_speed = 1.0
+amplitude_factor = sqrt(2)
 
-grid = FourierGrid(N, Ω, arraytype = arraytype)
+jld_name = "streamfunction_amp_factor_" * string(amplitude_factor) * "_phase_speed_" * string(phase_speed) * "_"
+
+grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
 x = nodes[1]
@@ -33,7 +35,7 @@ wavemax = 3
 𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
-A = @. 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-11 / 12) * amplitude_factor
+A = @. (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-1)
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N, N))
@@ -76,14 +78,50 @@ P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
 ##
+φ .= 0.0
+event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+wait(event)
+P * ψ # in place fft
+# ∇ᵖψ
+@. u = -1.0 * (∂y * ψ)
+@. v = (∂x * ψ)
+# go back to real space 
+P⁻¹ * ψ
+P⁻¹ * θ
+P⁻¹ * u
+P⁻¹ * v
+u₀ = sqrt(real(mean(u .* u)))
+v₀ = sqrt(real(mean(v .* v)))
+A .*= 1 / (u₀ * sqrt(2)) * amplitude_factor
+# check it 
+event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+wait(event)
+P * ψ # in place fft
+# ∇ᵖψ
+@. u = -1.0 * (∂y * ψ)
+@. v = (∂x * ψ)
+# go back to real space 
+P⁻¹ * ψ
+P⁻¹ * θ
+P⁻¹ * u
+P⁻¹ * v
+u₀ = sqrt(real(mean(u .* u)))
+v₀ = sqrt(real(mean(v .* v)))
+
+##
 # κ = 2 / N  # roughly 1/N for this flow
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
-κ = amplitude_factor * 2*Δx^2 
-Δt = (x[2] - x[1]) / (4π) * 5 / amplitude_factor
+Δx = x[2] - x[1]
+κ = 0.01 # amplitude_factor * 2 * Δx^2
+cfl = 0.4
+Δx = (x[2] - x[1])
+advective_Δt = cfl * Δx / amplitude_factor
+diffusive_Δt = cfl * Δx^2 / κ
+Δt = minimum([advective_Δt, diffusive_Δt])
 
 # take the initial condition as negative of the source
-index_choices = 2:80
+index_choices = 2:2
 tic = Base.time()
 
 tstart = 1000
@@ -94,6 +132,8 @@ for index_choice in ProgressBar(index_choices)
     θ_save = typeof(real.(Array(ψ)))[]
 
     kᶠ = kˣ[index_choice]
+
+    φ .= arraytype(2π * rand(size(A)...))
 
     @. θ = cos(kᶠ * x) / (kᶠ)^2 / κ # scaling so that source is order 1
     θclims = extrema(Array(real.(θ))[:])
@@ -120,29 +160,29 @@ for index_choice in ProgressBar(index_choices)
         # the below assumes that φ is just a function of time
         θ_rhs_new!(k₁, θ, params)
         @. θ̃ = θ + Δt * k₁ * 0.5
-    
+        
         φ_rhs_normal!(φ̇, φ, rng)
-        @. φ += phase_speed  * sqrt(Δt / 2) * φ̇
-    
+        @. φ += phase_speed * sqrt(Δt / 2) * φ̇
+
         θ_rhs_new!(k₂, θ̃, params)
         @. θ̃ = θ + Δt * k₂ * 0.5
         θ_rhs_new!(k₃, θ̃, params)
         @. θ̃ = θ + Δt * k₃
 
         φ_rhs_normal!(φ̇, φ, rng)
-        @. φ += phase_speed  * sqrt(Δt / 2) * φ̇
+        @. φ += phase_speed * sqrt(Δt / 2) * φ̇
 
         θ_rhs_new!(k₄, θ̃, params)
         @. θ += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
-    
+
         # update stochastic part 
         # φ_rhs_normal!(φ̇, φ, rng)
         # @. φ += sqrt(Δt) * φ̇
-        
-    
+
+
         t[1] += Δt
         # save output
-    
+
         if save_fields
             if i % div(iend, 10) == 0
                 # println("Saving at i=", i)
@@ -152,7 +192,7 @@ for index_choice in ProgressBar(index_choices)
                 # println("time is t = ", t[1])
             end
         end
-    
+
         if t[1] >= tstart
             θ̅ .+= Δt * θ
         end
@@ -165,7 +205,7 @@ for index_choice in ProgressBar(index_choices)
             println("on wavenumber index ", index_choice)
         end
         =#
-    
+
     end
 
     θ̅ ./= (t[end] - tstart)

@@ -1,7 +1,7 @@
 using HDF5, Statistics
 using GLMakie 
 
-fid = h5open("effective_diffusivities_samples.h5", "r")
+fid = h5open("effective_diffusivities_samples_100.h5", "r")
 N = length(fid["effective_diffusivities"])
 M = length(fid["effective_diffusivities"]["1"])
 amplitude_factor = zeros(N)

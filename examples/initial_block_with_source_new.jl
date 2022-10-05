@@ -1,21 +1,24 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
-using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
-using GLMakie, ProgressBars
+using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2, GLMakie, HDF5
+using ProgressBars
 rng = MersenneTwister(1234)
-# Random.seed!(123456789)
-Random.seed!(12)
+Random.seed!(123456789)
 # jld_name = "high_order_timestep_spatial_tracer_"
-jld_name = "blocky"
+jld_name = "blocky_"
 include("transform.jl")
 include("random_phase_kernel.jl")
 # using GLMakie
+save_fields = false
 using CUDA
 arraytype = CuArray
 Ω = S¹(4π)^2
 N = 2^7 # number of gridpoints
-phase_speed = 5
-# eulerian decorrelation time is 24/phase_speed^2 
-amplitude_factor = 2.0 # sqrt(phase_speed)
+
+# for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
+di = 1
+amplitude_factor = 0.5
+phase_speed = 1.0
+
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 
@@ -26,16 +29,17 @@ kʸ = wavenumbers[2]
 # construct filter
 kxmax = maximum(kˣ)
 kymax = maximum(kˣ)
-# filter = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
 filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ 2 / 3 * kxmax
 @. filter = filter * (0 * abs(kˣ) .+ 1 * abs(kʸ) ≤ 2 / 3 * kxmax)
+filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ Inf
+
 
 # now define the random field 
 wavemax = 3
 𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
-A = @. 0.1 * (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-11 / 12) * amplitude_factor
+A = @. (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-1)
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N, N))
@@ -60,6 +64,10 @@ k₂ = similar(ψ)
 k₃ = similar(ψ)
 k₄ = similar(ψ)
 θ̃ = similar(ψ)
+uθ = similar(ψ)
+vθ = similar(ψ)
+∂ˣuθ = similar(ψ)
+∂ʸvθ = similar(ψ)
 
 # source
 s = similar(ψ)
@@ -77,16 +85,50 @@ s = similar(ψ)
 P = plan_fft!(ψ)
 P⁻¹ = plan_ifft!(ψ)
 
+##
+φ .= 0.0
+event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+wait(event)
+P * ψ # in place fft
+# ∇ᵖψ
+@. u = -1.0 * (∂y * ψ)
+@. v = (∂x * ψ)
+# go back to real space 
+P⁻¹ * ψ
+P⁻¹ * θ
+P⁻¹ * u
+P⁻¹ * v
+u₀ = sqrt(real(mean(u .* u)))
+v₀ = sqrt(real(mean(v .* v)))
+A .*= amplitude_factor * sqrt(2) / u₀
+# check it 
+event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+wait(event)
+P * ψ # in place fft
+# ∇ᵖψ
+@. u = -1.0 * (∂y * ψ)
+@. v = (∂x * ψ)
+# go back to real space 
+P⁻¹ * ψ
+P⁻¹ * θ
+P⁻¹ * u
+P⁻¹ * v
+u₀ = sqrt(real(mean(u .* u))) # / sqrt(2)
+v₀ = sqrt(real(mean(v .* v))) # / sqrt(2)
+##
+
 # number of gridpoints in transition is about λ * N / 2
 bump(x; λ=20 / N, width=π / 2) = 0.5 * (tanh((x + width / 2) / λ) - tanh((x - width / 2) / λ))
 bumps(x; λ=20 / N, width=1.0) = 0.25 * (bump(x, λ=λ, width=width) + bump(x, λ=λ, width=2.0 * width) + bump(x, λ=λ, width=3.0 * width) + bump(x, λ=λ, width=4.0 * width))
 
 ##
 Δx = x[2] - x[1]
-κ = amplitude_factor * 2 * Δx^2
-# κ = 2 / 2^8 # fixed diffusivity
-# κ = 2e-4
-Δt = (Δx) / (4π) * 5 / amplitude_factor
+κ = 0.01 * (2^7 / N)^2# amplitude_factor * 2 * Δx^2
+cfl = 0.1
+Δx = (x[2] - x[1])
+advective_Δt = cfl * Δx / amplitude_factor
+diffusive_Δt = cfl * Δx^2 / κ
+Δt = minimum([advective_Δt, diffusive_Δt])
 
 # take the initial condition as negative of the source
 tic = Base.time()
@@ -113,7 +155,7 @@ tend = 100.0 # 5
 
 iend = ceil(Int, tend / Δt)
 
-params = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter)
+simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter)
 
 size_of_A = size(A)
 
@@ -121,7 +163,7 @@ realizations = 1000
 
 θ̅_timeseries = CuArray(zeros(size(ψ)..., iend))
 θ_timeseries = Array(zeros(size(ψ)..., iend))
-
+rhs! = θ_rhs_symmetric!
 for j in ProgressBar(1:realizations)
     # new realization of flow
     rand!(rng, φ) # between 0, 1
@@ -136,21 +178,21 @@ for j in ProgressBar(1:realizations)
         # keep ψ frozen is the correct way to do it here
 
         # the below assumes that φ is just a function of time
-        θ_rhs_new!(k₁, θ, params)
+        rhs!(k₁, θ, simulation_parameters)
         @. θ̃ = θ + Δt * k₁ * 0.5
 
         φ_rhs_normal!(φ̇, φ, rng)
         @. φ += phase_speed * sqrt(Δt / 2) * φ̇
 
-        θ_rhs_new!(k₂, θ̃, params)
+        rhs!(k₂, θ̃, simulation_parameters)
         @. θ̃ = θ + Δt * k₂ * 0.5
-        θ_rhs_new!(k₃, θ̃, params)
+        rhs!(k₃, θ̃, simulation_parameters)
         @. θ̃ = θ + Δt * k₃
 
         φ_rhs_normal!(φ̇, φ, rng)
         @. φ += phase_speed * sqrt(Δt / 2) * φ̇
 
-        θ_rhs_new!(k₄, θ̃, params)
+        rhs!(k₄, θ̃, simulation_parameters)
         @. θ += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
         # update stochastic part 
@@ -217,6 +259,7 @@ begin
 end
 
 ##
+
 begin
     fig = Figure(resolution=(1400, 1100))
     t_slider = Slider(fig[3, 1:2], range=1:iend, startvalue=0)
@@ -242,7 +285,7 @@ begin
 
     Δ_A = Array(Δ)
     colorrange = @lift((0, maximum($field)))
-    Kᵉ = effective_diffusivity[2] # 0.5 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
+    Kᵉ = amplitude_factor^2 # effective_diffusivity[2] # 0.5 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
     field_diffusion = @lift(real.(ifft(fft(θ_A - pS * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS * κ / Kᵉ))
     field_diffusion_slice = @lift($field_diffusion[:, floor(Int, N / 2)])
 
@@ -257,7 +300,7 @@ begin
     axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "molecular diffusivity "], position=:rt)
     display(fig)
 end
-
+#=
 ##
 
 begin
@@ -290,7 +333,7 @@ begin
 
     Δ_A = Array(Δ)
     colorrange = @lift((0, maximum($field)))
-    Kᵉ = effective_diffusivity[2] # 0.5 / maximum([sqrt(phase_speed), 1]) / 2 * amplitude_factor^2
+    Kᵉ = amplitude_factor^2
     field_diffusion = @lift(real.(ifft(fft(θ_A - pS_local * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS_local * κ / Kᵉ))
     field_diffusion_slice = @lift($field_diffusion[:, floor(Int, N / 2)])
 
@@ -305,38 +348,4 @@ begin
     axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "nonlocal diffusivity "], position=:rt)
     display(fig)
 end
-
-##
-#=
-skip = floor(Int, 0.5/Δt)
-save_iend = length(1:skip:iend)
-
-diffusivity_timeseries = zeros(size(θ̅_timeseries)[1:2]..., save_iend)
-nonlocal_timeseries = similar(diffusivity_timeseries)
-θ_save_timeseries = similar(diffusivity_timeseries)
-for i in 1:save_iend 
-    diffusivity_timeseries[:, :, i] .= real.(ifft(fft(θ_A - pS_local * κ / Kᵉ) .* exp.(Δ_A * ((i - 1) * skip + 1) * Kᵉ * Δt)) + pS_local * κ/ Kᵉ)
-    nonlocal_timeseries[:, :, i] .= real.(ifft(fft(θ_A - pS) .* exp.(KK * ((i- 1) * skip + 1) * Δt)) + pS)
-    θ_save_timeseries[:, :, i] = Array(θ̅_timeseries[:, :, (i - 1) * skip + 1])
-end
-
-using HDF5
-fid = h5open("very_long_time_source_more_realizations.hdf5", "w")
-fid["effective_diffusivity_operator"] = KK
-fid["effective_diffusivity"] = effective_diffusivity[1:40]
-fid["molecular_diffusivity"] = κ
-fid["effective_local_diffusivity_operator"] = Kᵉ * Δ_A
-fid["initial_condition_t0"] = Array(θ_A)
-fid["ensemble_average_field"] = θ_save_timeseries
-fid["diffusivity_field"] = diffusivity_timeseries
-fid["nonlocal_field"] = nonlocal_timeseries
-fid["x"] = x_A
-fid["y"] = x_A
-fid["streamfunction_amplitude"] = Array(A)
-fid["phase increase"] = phase_speed
-fid["time"] = collect(Δt * (1:skip:iend))
-fid["source"] = real.(s_A)
-fid["local_long_time_limit"] = real.(pS_local)
-fid["nonlocal_long_time_limit"] = real.(pS)
-close(fid)
 =#

@@ -124,6 +124,43 @@ function θ_rhs_symmetric!(θ̇, θ, simulation_parameters)
 end
 
 
+function θ_rhs_symmetric_zeroth!(θ̇, θ, simulation_parameters)
+    (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter) = simulation_parameters
+    event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
+    wait(event)
+    P * ψ # in place fft
+    P * θ # in place fft
+    # ∇ᵖψ
+    @. u = filter * -1.0 * (∂y * ψ)
+    @. v = filter * (∂x * ψ)
+    # ∇θ
+    @. ∂ˣθ = filter * ∂x * θ
+    @. ∂ʸθ = filter * ∂y * θ
+    @. κΔθ = κ * Δ * θ
+    # go back to real space 
+    P⁻¹ * ψ
+    P⁻¹ * θ
+    P⁻¹ * u
+    P⁻¹ * v
+    P⁻¹ * ∂ˣθ
+    P⁻¹ * ∂ʸθ
+    P⁻¹ * κΔθ
+    # compute u * θ and v * θ take derivative and come back
+    @. uθ = u * θ
+    @. vθ = v * θ
+    P * uθ
+    P * vθ
+    @. ∂ˣuθ = filter * ∂x * uθ
+    @. ∂ʸvθ = filter * ∂y * vθ
+    P⁻¹ * ∂ˣuθ
+    P⁻¹ * ∂ʸvθ
+    # Assemble RHS
+    @. θ̇ = -(u * ∂ˣθ + v * ∂ʸθ + ∂ˣuθ +  ∂ʸvθ) * 0.5  + κΔθ + u
+    return nothing
+end
+
+
+
 
 function θ_rhs_zeroth!(θ̇, θ, params)
     #(; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter) = params
@@ -146,7 +183,7 @@ function θ_rhs_zeroth!(θ̇, θ, params)
     P⁻¹ * ∂ʸθ
     P⁻¹ * κΔθ
     # Assemble RHS
-    @. θ̇ = -u * ∂ˣθ - v * ∂ʸθ + κΔθ - u
+    @. θ̇ = -u * ∂ˣθ - v * ∂ʸθ + κΔθ + u
     return nothing
 end
 

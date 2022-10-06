@@ -74,6 +74,7 @@ uθ = similar(ψ)
 vθ = similar(ψ)
 ∂ˣuθ = similar(ψ)
 ∂ʸvθ = similar(ψ)
+s¹ = similar(ψ)
 
 # source
 s = similar(ψ)
@@ -139,15 +140,10 @@ maxind = minimum([40, floor(Int, N / 4)])
 index_choices = 2:2
 tic = Base.time()
 
-tstart = 100
-s .*= 0.0
+@. s *= false
 for index_choice in ProgressBar(index_choices)
     kᶠ = kˣ[index_choice]
-    @. θ = cos(kᶠ * x) / (kᶠ)^2 / κ # scaling so that source is order 1
-    P * θ # in place fft
-    @. κΔθ = κ * Δ * θ
-    P⁻¹ * κΔθ # in place fft
-    s .+= -κΔθ # add to source
+    @. s¹ = kᶠ * cos(kᶠ * x)
 end
 
 t = [0.0]
@@ -161,7 +157,7 @@ iend = ceil(Int, tend / Δt)
 θ̅ .*= 0.0
 size_of_A = size(A)
 
-rhs! = θ_rhs_symmetric!
+rhs! = θ_rhs_symmetric_ensemble!
 
 ensemble_size = 100
 ψs = [arraytype(zeros(ComplexF64, N, N)) for i in 1:ensemble_size]
@@ -177,13 +173,57 @@ for ω in ProgressBar(ensemble_indices)
     stream_function!(ψω, A, 𝓀ˣ, 𝓀ʸ, x, y, φω)
 end
 
+function ensemble_flux_divergence!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
+    ensemble_indices = 1:ensemble_size
+    @. s *= false
+    for ω in ensemble_indices
+        ψω = ψs[ω]
+        θω = θs[ω]
+        P * ψω
+        @. u = -1.0 * (∂y * ψω)
+        @. v = (∂x * ψω)
+        P⁻¹ * u
+        P⁻¹ * v
+        P⁻¹ * ψω
+        @. uθ = u * θω
+        @. vθ = v * θω
+        P * uθ
+        P * vθ
+        @. ∂ˣuθ = ∂x * uθ
+        @. ∂ʸvθ = ∂y * vθ
+        P⁻¹ * ∂ˣuθ
+        P⁻¹ * ∂ʸvθ
+        @. s += real(∂ˣuθ + ∂ʸvθ) / ensemble_size
+    end
+    return nothing
+end
+
+function ensemble_mean_flux!(ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
+    ensemble_indices = 1:ensemble_size
+    flux = 0
+    for ω in ensemble_indices
+        ψω = ψs[ω]
+        θω = θs[ω]
+        P * ψω
+        @. u = -1.0 * (∂y * ψω)
+        @. v = (∂x * ψω)
+        P⁻¹ * u
+        P⁻¹ * v
+        P⁻¹ * ψω
+        @. uθ = u * θω
+        @. vθ = v * θω
+       
+    end
+    return nothing
+end
+
 for i = ProgressBar(1:iend)
     for ω in ensemble_indices
         θω = θs[ω]   
         ψω = ψs[ω]
         φω = φs[ω]
 
-        simulation_parameters = (; ψ = ψω, A, 𝓀ˣ, 𝓀ʸ, x, y, φ = φω, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter)
+        simulation_parameters = (; ψ = ψω, A, 𝓀ˣ, 𝓀ʸ, x, y, φ = φω, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, s¹, P, P⁻¹, filter)
         # the below assumes that φ is just a function of time
         rhs!(k₁, θω, simulation_parameters)
         @. θ̃ = θω
@@ -205,6 +245,8 @@ for i = ProgressBar(1:iend)
 
         t[1] += Δt
     end
+
+    ensemble_flux_divergence!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
 
     if t[1] >= tstart
         θ̅ .+= Δt * θ

@@ -16,7 +16,7 @@ N = 2^7 # number of gridpoints
 
 # for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
 di = 1
-amplitude_factor = 0.5
+amplitude_factor = 1.0
 phase_speed = 1.0
 
 grid = FourierGrid(N, Ω, arraytype=arraytype)
@@ -138,16 +138,9 @@ tic = Base.time()
 θ_save = typeof(real.(Array(ψ)))[]
 
 r_A = Array(@. sqrt((x - 2π)^2 + (y - 2π)^2))
-θ_A = [bump(r_A[i, j]) for i in 1:N, j in 1:N]
-# θ_A = [bump.(abs.(x[i]- 2π)) for i in 1:N, j in 1:N]
-θ .= CuArray(θ_A)
-# @. θ = bump(sqrt(x^2 + y^2)) # scaling so that source is order 1
-θclims = extrema(Array(real.(θ))[:])
-P * θ # in place fft
-@. κΔθ = κ * Δ * θ
-P⁻¹ * κΔθ # in place fft
-s .= -κΔθ
-P⁻¹ * θ # in place fft
+
+@. θ = sin(kˣ[2] * x) * 6.4 * 0 + 0 * kʸ # 6.4 is roughly the ω = 0 case
+θ_A = Array(θ)
 θ̅ .= 0.0
 
 t = [0.0]
@@ -164,13 +157,18 @@ realizations = 100
 θ̅_timeseries = CuArray(zeros(size(ψ)..., iend))
 θ_timeseries = Array(zeros(size(ψ)..., iend))
 rhs! = θ_rhs_symmetric!
+
+
+ω = 2π / 1.0
 for j in ProgressBar(1:realizations)
     # new realization of flow
     rand!(rng, φ) # between 0, 1
     φ .*= 2π # to make it a random phase
     event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
     wait(event)
+
     t[1] = 0
+    @. s = sin(kˣ[2] * x )* cos(ω * t[1]) + 0 * kʸ
 
     θ .= CuArray(θ_A)
     for i = 1:iend
@@ -180,6 +178,9 @@ for j in ProgressBar(1:realizations)
         # the below assumes that φ is just a function of time
         rhs!(k₁, θ, simulation_parameters)
         @. θ̃ = θ + Δt * k₁ * 0.5
+        t[1] += Δt / 2
+        @. s = sin(kˣ[2] * x) * cos(ω * t[1]) + 0 * kʸ
+
 
         φ_rhs_normal!(φ̇, φ, rng)
         @. φ += phase_speed * sqrt(Δt / 2) * φ̇
@@ -188,6 +189,8 @@ for j in ProgressBar(1:realizations)
         @. θ̃ = θ + Δt * k₂ * 0.5
         rhs!(k₃, θ̃, simulation_parameters)
         @. θ̃ = θ + Δt * k₃
+        t[1] += Δt / 2
+        @. s = sin(kˣ[2] * x) * cos(ω * t[1]) + 0 * kʸ
 
         φ_rhs_normal!(φ̇, φ, rng)
         @. φ += phase_speed * sqrt(Δt / 2) * φ̇
@@ -199,8 +202,6 @@ for j in ProgressBar(1:realizations)
         # φ_rhs_normal!(φ̇, φ, rng)
         # @. φ += sqrt(Δt) * φ̇
 
-
-        t[1] += Δt
         # save output
         # tmp = real.(Array(θ))
         @. θ̅_timeseries[:, :, i] += real.(θ) / realizations
@@ -241,25 +242,37 @@ x_A = Array(x)[:] .- 2π
 θ_F = Array(real.(θ))
 θ̅_F = Array(real.(θ̅))
 
+θ̅_timeseries_A = Array(θ̅_timeseries)
+θ_timeseries_A = Array(θ_timeseries)
+
 begin
     fig = Figure(resolution=(2048, 512))
-    ax1 = Axis(fig[1, 1], title="t = 0")
-    ax2 = Axis(fig[1, 2], title="instantaneous t = " * string(tend))
-    ax3 = Axis(fig[1, 4], title="ensemble average t = " * string(tend))
-    println("the extrema of the end field is ", extrema(θ_F))
-    println("the extrema of the ensemble average is ", extrema(θ̅_F))
-    colormap = :bone_1
-    # colormap = :nipy_spectral
-    heatmap!(ax1, x_A, x_A, θ_A, colormap=colormap, colorrange=(0.0, 1.0), interpolate=true)
-    hm = heatmap!(ax2, x_A, x_A, θ_F, colormap=colormap, colorrange=(0.0, 1.0), interpolate=true)
-    hm_e = heatmap!(ax3, x_A, x_A, θ̅_F, colormap=colormap, colorrange=(0.0, 0.2), interpolate=true)
-    Colorbar(fig[1, 3], hm, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
-    Colorbar(fig[1, 5], hm_e, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
+    ax11 = Axis(fig[1, 1])
+    ax12 = Axis(fig[2, 1])
+    t_slider = Slider(fig[3, 1:2], range=1:iend, startvalue=1)
+    tindex = t_slider.value
+
+    field1 = @lift(θ̅_timeseries_A[:, :, $tindex])
+    field2 = @lift(θ_timeseries_A[:, :, $tindex])
+    hm1 = heatmap!(ax11, field1, colorrange=(-0.35, 0.35), colormap=:balance)
+    hm2 = heatmap!(ax12, field2, colorrange=(-0.35, 0.35), colormap=:balance)
+
+    Colorbar(fig[1, 2], hm1, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
+    Colorbar(fig[2, 2], hm2, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
     display(fig)
 end
 
-##
+fig2 = Figure(resolution=(2048, 512))
+ax11 = Axis(fig2[1, 1])
+ax12 = Axis(fig2[2, 1])
+mtheta2 = mean(θ̅_timeseries_A, dims=2)[:, 1, :]
+heatmap!(ax11, mtheta2, colorrange=(-0.35, 0.35), colormap=:balance)
+lines!(ax12, mtheta2[10, :], color=:black, linewidth=2)
+amp = maximum(mtheta2[10, :])
+lines!(ax12, amp .* sin.(ω .* collect(1:iend) * Δt), color=:red, linewidth=2)
 
+##
+#=
 begin
     fig = Figure(resolution=(1400, 1100))
     t_slider = Slider(fig[3, 1:2], range=1:iend, startvalue=0)
@@ -300,86 +313,4 @@ begin
     axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "molecular diffusivity "], position=:rt)
     display(fig)
 end
-#=
-##
-
-begin
-    fig = Figure(resolution=(1400, 1100))
-    t_slider = Slider(fig[3, 1:2], range=1:iend, startvalue=0)
-    tindex = t_slider.value
-    ax11 = Axis(fig[1, 1]; title="ensemble average")
-    ax12 = Axis(fig[1, 2]; title=@lift("x=0 slice at t = " * string($tindex * Δt)))
-    ax21 = Axis(fig[2, 1]; title="diffusion")
-    ax22 = Axis(fig[2, 2]; title="nonlocal space kernel")
-
-    colormap = :bone_1
-    field = @lift(Array(θ̅_timeseries[:, :, $tindex]))
-    field_slice = @lift($field[:, floor(Int, N / 2)])
-
-    # particular solution
-    Δ_A = Array(Δ)
-    KK = (effective_diffusivity_operator .+ κ) .* Δ_A
-    KK[1] = 1.0
-    s_A = Array(s)
-    pS = ifft(fft(s_A) ./ (-KK))
-    pS .+= mean(θ_A)
-    KK[1] = 0.0 # numerical presicion issues requires setting this to 0 since it'll be exponentiated
-
-    tmpKK = -κ .* Δ_A
-    tmpKK[1] = 1.0
-    pS_local = ifft(fft(s_A) ./ tmpKK)
-    pS_local .+= mean(θ_A)
-    tmpKK[1] = 0.0 # numerical presicion issues
-
-    Δ_A = Array(Δ)
-    colorrange = @lift((0, maximum($field)))
-    Kᵉ = amplitude_factor^2
-    field_diffusion = @lift(real.(ifft(fft(θ_A - pS_local * κ / Kᵉ) .* exp.(Δ_A * ($tindex - 0) * Kᵉ * Δt)) + pS_local * κ / Kᵉ))
-    field_diffusion_slice = @lift($field_diffusion[:, floor(Int, N / 2)])
-
-    approximate_field = @lift(real.(ifft(fft(θ_A - pS) .* exp.(KK * ($tindex - 0) * Δt)) + pS))
-    approximate_field_slice = @lift($approximate_field[:, floor(Int, N / 2)])
-    heatmap!(ax11, x_A, x_A, field, colormap=colormap, interpolate=true, colorrange=colorrange)
-    heatmap!(ax21, x_A, x_A, field_diffusion, colormap=colormap, interpolate=true, colorrange=colorrange)
-    heatmap!(ax22, x_A, x_A, approximate_field, colormap=colormap, interpolate=true, colorrange=colorrange)
-    le = lines!(ax12, x_A, field_slice, color=:black)
-    ld = lines!(ax12, x_A, field_diffusion_slice, color=:red)
-    lnd = lines!(ax12, x_A, approximate_field_slice, color=:blue)
-    axislegend(ax12, [le, ld, lnd], ["ensemble", "effective diffusivity", "nonlocal diffusivity "], position=:rt)
-    display(fig)
-end
-=#
-
-#=
-skipi = floor(Int, 0.5/Δt)
-save_iend = length(1:skipi:iend)
-
-diffusivity_timeseries = zeros(size(θ̅_timeseries)[1:2]..., save_iend)
-nonlocal_timeseries = similar(diffusivity_timeseries)
-θ_save_timeseries = similar(diffusivity_timeseries)
-for i in 1:save_iend 
-    diffusivity_timeseries[:, :, i] .= real.(ifft(fft(θ_A - pS_local * κ / Kᵉ) .* exp.(Δ_A * ((i - 1) * skipi + 1) * Kᵉ * Δt)) + pS_local * κ/ Kᵉ)
-    nonlocal_timeseries[:, :, i] .= real.(ifft(fft(θ_A - pS) .* exp.(KK * ((i- 1) * skipi + 1) * Δt)) + pS)
-    θ_save_timeseries[:, :, i] = Array(θ̅_timeseries[:, :, (i - 1) * skipi + 1])
-end
-
-using HDF5
-fid = h5open("block_with_source_t100_e100.hdf5", "w")
-fid["effective_diffusivity_operator"] = KK
-fid["effective_diffusivity"] = effective_diffusivity[1:40]
-fid["molecular_diffusivity"] = κ
-fid["effective_local_diffusivity_operator"] = Kᵉ * Δ_A
-fid["initial_condition_t0"] = Array(θ_A)
-fid["ensemble_average_field"] = θ_save_timeseries
-fid["diffusivity_field"] = diffusivity_timeseries
-fid["nonlocal_field"] = nonlocal_timeseries
-fid["x"] = x_A
-fid["y"] = x_A
-fid["streamfunction_amplitude"] = Array(A)
-fid["phase increase"] = phase_speed
-fid["time"] = collect(Δt * (1:skipi:iend))
-fid["source"] = real.(s_A)
-fid["local_long_time_limit"] = real.(pS_local)
-fid["nonlocal_long_time_limit"] = real.(pS)
-close(fid)
 =#

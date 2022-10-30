@@ -1,5 +1,6 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
-using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2, GLMakie, HDF5
+using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2, HDF5
+# using GLMakie
 using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
@@ -11,20 +12,20 @@ include("random_phase_kernel.jl")
 save_fields = false
 using CUDA
 arraytype = CuArray
-Ω = S¹(4π)^2
-N = 2^7 # number of gridpoints
+Ω = S¹(2*4π)^2
+N = 2^8 # number of gridpoints
 phase_speed = 1.0
-amplitude_factor = 10.0
 
-filename = "effective_diffusivities_samples_100.h5"
+filename = "effective_diffusivities_eightpi_amp1_cpu.h5"
 fid = h5open(filename, "w")
 create_group(fid, "effective_diffusivities")
 create_group(fid, "amplitude_factor")
 
 
 # for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
-for di in ProgressBar(1:100)
-amplitude_factor = 0.5
+# for di in ProgressBar(1:1)
+di = 1
+amplitude_factor = 1.0 # 0.5
 
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
@@ -128,7 +129,7 @@ v₀ = sqrt(real(mean(v .* v))) # / sqrt(2)
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
 Δx = x[2] - x[1]
-κ = 0.01 * (2^7 / N)^2# amplitude_factor * 2 * Δx^2
+κ = 0.01 # * (2^7 / N)^2# amplitude_factor * 2 * Δx^2
 cfl = 0.1
 Δx = (x[2] - x[1])
 advective_Δt = cfl * Δx / amplitude_factor
@@ -152,7 +153,7 @@ for index_choice in ProgressBar(index_choices)
 end
 
 t = [0.0]
-tend = 500 # 5000
+tend = 10000 # 5000
 
 iend = ceil(Int, tend / Δt)
 
@@ -218,7 +219,7 @@ effective_diffusivities = effective_diffusivities[index_choices]
 
 fid["effective_diffusivities"][string(di)] = effective_diffusivities
 fid["amplitude_factor"][string(di)] = amplitude_factor
-end
+# end
 
 close(fid)
 #=

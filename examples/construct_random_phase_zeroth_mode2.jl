@@ -1,5 +1,7 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
-using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2, GLMakie, HDF5
+using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
+# GLMakie
+using HDF5
 using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
@@ -19,7 +21,7 @@ amplitude_factor = 10.0
 
 # for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
 di = 1
-amplitude_factor = 0.5
+amplitude_factor = 1.0 # 0.5
 
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers

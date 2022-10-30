@@ -321,7 +321,7 @@ for i in 1:save_iend
 end
 
 using HDF5
-fid = h5open("very_long_time_source_more_realizations.hdf5", "w")
+fid = h5open("block_with_source_new.hdf5", "w")
 fid["effective_diffusivity_operator"] = KK
 fid["effective_diffusivity"] = effective_diffusivity[1:40]
 fid["molecular_diffusivity"] = κ

@@ -141,13 +141,15 @@ index_choices = 2:2
 tic = Base.time()
 
 @. s *= false
+@. s¹ *= false
+
 for index_choice in ProgressBar(index_choices)
     kᶠ = kˣ[index_choice]
-    @. s¹ = kᶠ * cos(kᶠ * x)
+    @. s¹ += cos(kᶠ * x)
 end
 
 t = [0.0]
-tend = 5 # 5000
+tend = 100 # 5000
 
 iend = ceil(Int, tend / Δt)
 
@@ -159,14 +161,14 @@ size_of_A = size(A)
 
 rhs! = θ_rhs_symmetric_ensemble!
 
-ensemble_size = 100
+ensemble_size = 400
 ψs = [arraytype(zeros(ComplexF64, N, N)) for i in 1:ensemble_size]
 θs = [arraytype(zeros(ComplexF64, N, N)) for i in 1:ensemble_size]
 φs = [arraytype(2π * rand(size_of_A...)) for i in 1:ensemble_size]
 ensemble_indices = 1:ensemble_size
 
 for ω in ProgressBar(ensemble_indices)
-    θω = θs[ω]   
+    θω = θs[ω]
     ψω = ψs[ω]
     φω = φs[ω]
 
@@ -195,12 +197,30 @@ function ensemble_flux_divergence!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂�
         P⁻¹ * ∂ʸvθ
         @. s += real(∂ˣuθ + ∂ʸvθ) / ensemble_size
     end
+    # take off mean component 
+    ψω  = mean(ψs)
+    θω = mean(θs)
+    P * ψω
+    @. u = -1.0 * (∂y * ψω)
+    @. v = (∂x * ψω)
+    P⁻¹ * u
+    P⁻¹ * v
+    P⁻¹ * ψω
+    @. uθ = u * θω
+    @. vθ = v * θω
+    P * uθ
+    P * vθ
+    @. ∂ˣuθ = ∂x * uθ
+    @. ∂ʸvθ = ∂y * vθ
+    P⁻¹ * ∂ˣuθ
+    P⁻¹ * ∂ʸvθ
+    @. s -= real(∂ˣuθ + ∂ʸvθ)
     return nothing
 end
 
-function ensemble_mean_flux!(ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
+function ensemble_flux_u!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
     ensemble_indices = 1:ensemble_size
-    flux = 0
+    @. s *= false
     for ω in ensemble_indices
         ψω = ψs[ω]
         θω = θs[ω]
@@ -211,19 +231,38 @@ function ensemble_mean_flux!(ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂
         P⁻¹ * v
         P⁻¹ * ψω
         @. uθ = u * θω
-        @. vθ = v * θω
-       
+        @. s += real(uθ) / ensemble_size
     end
     return nothing
 end
 
+function ensemble_flux_v!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
+    ensemble_indices = 1:ensemble_size
+    @. s *= false
+    for ω in ensemble_indices
+        ψω = ψs[ω]
+        θω = θs[ω]
+        P * ψω
+        @. u = -1.0 * (∂y * ψω)
+        @. v = (∂x * ψω)
+        P⁻¹ * u
+        P⁻¹ * v
+        P⁻¹ * ψω
+        @. vθ = v * θω
+        @. s += real(vθ) / ensemble_size
+    end
+    return nothing
+end
+
+# @. s *= false # incorrect
+ensemble_flux_divergence!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
 for i = ProgressBar(1:iend)
     for ω in ensemble_indices
-        θω = θs[ω]   
+        θω = θs[ω]
         ψω = ψs[ω]
         φω = φs[ω]
 
-        simulation_parameters = (; ψ = ψω, A, 𝓀ˣ, 𝓀ʸ, x, y, φ = φω, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, s¹, P, P⁻¹, filter)
+        simulation_parameters = (; ψ=ψω, A, 𝓀ˣ, 𝓀ʸ, x, y, φ=φω, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, s¹, P, P⁻¹, filter)
         # the below assumes that φ is just a function of time
         rhs!(k₁, θω, simulation_parameters)
         @. θ̃ = θω
@@ -248,7 +287,57 @@ for i = ProgressBar(1:iend)
 
     ensemble_flux_divergence!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
 
-    if t[1] >= tstart
-        θ̅ .+= Δt * θ
-    end
 end
+
+
+tmp = real.(Array(mean(θs)))
+tmpsi = mean(ψs)
+P * tmpsi
+@. u = -1.0 * (∂y * tmpsi); @. v = (∂x * tmpsi)
+P⁻¹ * u; P⁻¹ * v; P⁻¹ * tmpsi
+tmpu = real.(Array(u))
+tmpv = real.(Array(v))
+tmpsi = real.(Array(tmpsi))
+
+# heatmap(tmp)
+ensemble_flux_divergence!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
+tmps = real.(Array(s))
+# heatmap(tmps)
+
+ensemble_flux_u!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
+tmpuc = real.(Array(s))
+# heatmap(tmpu)
+
+ensemble_flux_v!(s, ψs, θs, u, v, uθ, vθ, ∂x, ∂y, ∂ˣuθ, ∂ʸvθ, P, P⁻¹, ensemble_size)
+tmpvc = real.(Array(s))
+# heatmap(tmpv)
+
+uc = Array(abs.(fft(mean(tmpuc, dims=2)))) - Array(abs.(fft(mean(tmpu .* tmp, dims=2))))
+∇c = Array(abs.(fft(mean(s¹, dims=2))))
+effective_diffusivities = (uc ./ ∇c)[index_choices]
+
+kˣ_A = Array(kˣ)[index_choices]
+
+# Array(abs.(fft(mean(tmp, dims=2))))
+#=
+fig = Figure()
+ax = Axis(fig[1, 1])
+scatter!(ax, kˣ_A, effective_diffusivities)
+ylims!(0, 0.25)
+=#
+
+##
+#=
+using HDF5
+filename = "effective_diffusivities_ensemble_correct_" * string(ensemble_size) * ".h5"
+fid = h5open(filename, "w")
+fid["effective_diffusivities"] = effective_diffusivities
+fid["amplitude_factor"] = amplitude_factor
+fid["phase_factor"] = 1.0
+fid["ensemble_mean"] = tmp
+fid["ensembe_flux_u"] = tmpuc
+fid["ensembe_flux_v"] = tmpvc
+close(fid)
+=#
+
+

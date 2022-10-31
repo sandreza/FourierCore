@@ -144,7 +144,7 @@ r_A = Array(@. sqrt((x - 2π)^2 + (y - 2π)^2))
 θ̅ .= 0.0
 
 t = [0.0]
-tend = 100.0 # 5 
+tend = 50.0 # 5 
 
 iend = ceil(Int, tend / Δt)
 
@@ -152,14 +152,21 @@ simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸ
 
 size_of_A = size(A)
 
-realizations = 100
+realizations = 1000
 
-θ̅_timeseries = CuArray(zeros(size(ψ)..., iend))
-θ_timeseries = Array(zeros(size(ψ)..., iend))
+
 rhs! = θ_rhs_symmetric!
 
+T = 10.0
+nT = ceil(Int, T / Δt)
+Δt = T / nT
+iend = ceil(Int, tend / Δt)
 
-ω = 2π / 1.0
+θ̅_timeseries = CuArray(zeros(size(ψ)..., iend))
+uθ_timeseries = CuArray(zeros(size(ψ)..., iend))
+θ_timeseries = Array(zeros(size(ψ)..., iend))
+
+ω = 2π / T  
 for j in ProgressBar(1:realizations)
     # new realization of flow
     rand!(rng, φ) # between 0, 1
@@ -168,7 +175,7 @@ for j in ProgressBar(1:realizations)
     wait(event)
 
     t[1] = 0
-    @. s = sin(kˣ[2] * x )* cos(ω * t[1]) + 0 * kʸ
+    @. s = sin(kˣ[2] * x) * cos(ω * t[1]) + 0 * kʸ
 
     θ .= CuArray(θ_A)
     for i = 1:iend
@@ -204,7 +211,9 @@ for j in ProgressBar(1:realizations)
 
         # save output
         # tmp = real.(Array(θ))
+        P⁻¹ * uθ
         @. θ̅_timeseries[:, :, i] += real.(θ) / realizations
+        @. uθ_timeseries[:, :, i] += real.(uθ) / realizations
         if j == 1
             θ_timeseries[:, :, i] = Array(real.(θ))
         end
@@ -243,33 +252,53 @@ x_A = Array(x)[:] .- 2π
 θ̅_F = Array(real.(θ̅))
 
 θ̅_timeseries_A = Array(θ̅_timeseries)
+uθ_timeseries_A = Array(uθ_timeseries)
 θ_timeseries_A = Array(θ_timeseries)
 
 begin
     fig = Figure(resolution=(2048, 512))
     ax11 = Axis(fig[1, 1])
     ax12 = Axis(fig[2, 1])
-    t_slider = Slider(fig[3, 1:2], range=1:iend, startvalue=1)
+    ax13 = Axis(fig[3, 1])
+    t_slider = Slider(fig[4, 1:2], range=1:iend, startvalue=1)
     tindex = t_slider.value
 
     field1 = @lift(θ̅_timeseries_A[:, :, $tindex])
     field2 = @lift(θ_timeseries_A[:, :, $tindex])
-    hm1 = heatmap!(ax11, field1, colorrange=(-0.35, 0.35), colormap=:balance)
-    hm2 = heatmap!(ax12, field2, colorrange=(-0.35, 0.35), colormap=:balance)
+    field3 = @lift(uθ_timeseries_A[:, :, $tindex])
+    upbound = maximum(abs.(θ̅_timeseries_A[:, :, end]))
+    hm1 = heatmap!(ax11, field1, colorrange=(-upbound, upbound), colormap=:balance)
+    hm2 = heatmap!(ax12, field2, colorrange=(-upbound, upbound), colormap=:balance)
+    hm3 = heatmap!(ax13, field3, colorrange=(-upbound, upbound), colormap=:balance)
 
     Colorbar(fig[1, 2], hm1, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
     Colorbar(fig[2, 2], hm2, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
+    Colorbar(fig[3, 2], hm3, height=Relative(3 / 4), width=25, ticklabelsize=30, labelsize=30, ticksize=25, tickalign=1,)
     display(fig)
 end
 
-fig2 = Figure(resolution=(2048, 512))
-ax11 = Axis(fig2[1, 1])
-ax12 = Axis(fig2[2, 1])
-mtheta2 = mean(θ̅_timeseries_A, dims=2)[:, 1, :]
-heatmap!(ax11, mtheta2, colorrange=(-0.35, 0.35), colormap=:balance)
-lines!(ax12, mtheta2[10, :], color=:black, linewidth=2)
-amp = maximum(mtheta2[10, :])
-lines!(ax12, amp .* sin.(ω .* collect(1:iend) * Δt), color=:red, linewidth=2)
+begin
+    fig2 = Figure(resolution=(1400, 600))
+    ax11 = Axis(fig2[1, 1]; title = "⟨θ⟩: averaged over y", xlabel = "spatial index", ylabel = "time index")
+    ax21 = Axis(fig2[2, 1]; title = "⟨θ⟩: black = index 32 of above, red = scaled forcing", xlabel = "time index", ylabel = "value")
+    ax12 = Axis(fig2[1, 2]; title = "⟨uθ⟩: averaged over y", xlabel = "spatial index", ylabel = "time index")
+    ax22 = Axis(fig2[2, 2]; title = "⟨uθ⟩: black = index 64 of above, red = scaled forcing", xlabel = "time index", ylabel = "value")
+
+    mtheta2 = mean(θ̅_timeseries_A, dims=2)[:, 1, :]
+    mutheta2 = mean(uθ_timeseries_A, dims=2)[:, 1, :]
+    mtheta2max = maximum(mtheta2)
+    mutheta2max = maximum(mutheta2)
+    heatmap!(ax11, mtheta2, colorrange=(-mtheta2max, mtheta2max), colormap=:balance)
+    heatmap!(ax12, mutheta2, colorrange=(-mutheta2max, mutheta2max), colormap=:balance)
+    lines!(ax21, mtheta2[32, :], color=:black, linewidth=2)
+    amp = maximum(mtheta2[32, :])
+    lines!(ax21, amp .* cos.(ω .* collect(1:iend) * Δt), color=:red, linewidth=2)
+
+    lines!(ax22, mutheta2[64, :], color=:black, linewidth=2)
+    amp = maximum(mutheta2[64, :])
+    lines!(ax22, amp .* cos.(ω .* collect(1:iend) * Δt), color=:red, linewidth=2)
+    save("TimeDependentSummaryPlot_ω_" * string(ω) * ".png", fig2)
+end
 
 ##
 #=

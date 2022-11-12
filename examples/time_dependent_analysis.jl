@@ -22,9 +22,9 @@ for T in [10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.4, 0.
     ϕ̂ = fft(ϕ, 1)[2, end-m+1:end]
     μ̂ = fft(μ, 1)[2, end-m+1:end]
     indmax = argmax(abs.(fft(ϕ̂)[:]))
-    totes = -fft(ϕ̂) ./ (0.5 .* im .* fft(μ̂))
+    kernel_entry = -fft(ϕ̂) ./ (0.5 .* im .* fft(μ̂))
     push!(indmaxlist, indmax)
-    push!(difflist, totes[indmax])
+    push!(difflist, kernel_entry[indmax])
 
     close(hfile1)
 end

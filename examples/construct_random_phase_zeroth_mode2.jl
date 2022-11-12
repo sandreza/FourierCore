@@ -5,8 +5,7 @@ using HDF5
 using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
-# jld_name = "high_order_timestep_spatial_tracer_"
-jld_name = "default_streamfunction_"
+
 include("transform.jl")
 include("random_phase_kernel.jl")
 # using GLMakie
@@ -18,10 +17,13 @@ N = 2^7 # number of gridpoints
 phase_speed = 1.0
 amplitude_factor = 10.0
 
+filename = "effective_diffusivities_zeroth_mode.h5"
+fid = h5open(filename, "w")
+create_group(fid, "effective_diffusivities")
+create_group(fid, "amplitude_factor")
 
-# for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
-di = 1
-amplitude_factor = 1.0 # 0.5
+
+for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
 
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
@@ -154,7 +156,7 @@ tend = 5000 # 5000
 iend = ceil(Int, tend / Δt)
 
 # simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter)
-simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter) 
+simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter, ∂x, ∂y, κ, Δ, κΔθ) 
 
 φ .= arraytype(2π * rand(size(A)...))
 θ .*= 0.0
@@ -203,3 +205,8 @@ end
 θ̅ ./= (t[end] - tstart)
 
 effdiff = real(mean(θ̅))
+
+fid["effective_diffusivities"][string(di)] = effdiff
+fid["amplitude_factor"][string(di)] = amplitude_factor
+
+end

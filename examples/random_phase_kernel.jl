@@ -126,7 +126,7 @@ end
 
 
 function θ_rhs_symmetric_zeroth!(θ̇, θ, simulation_parameters)
-    (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter) = simulation_parameters
+    (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter, ∂x, ∂y, κ, Δ, κΔθ) = simulation_parameters
     event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
     wait(event)
     P * ψ # in place fft

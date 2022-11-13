@@ -153,12 +153,10 @@ tend = 50.0 # 50.0 is good for the default
 iend = ceil(Int, tend / Δt)
 global Δt_old = Δt
 
-realizations = 100
-
+realizations = 1000
 
 rhs! = θ_rhs_symmetric!
 
-# T = 10.0
 for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.4, 0.3, 0.2, 0.1])
     nT = ceil(Int, T / Δt_old)
     Δt = T / nT
@@ -181,6 +179,7 @@ for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 
         # ∇ᵖψ
         @. u = -1.0 * (∂y * ψ)
         # go back to real space 
+        P⁻¹ * u
         P⁻¹ * ψ
         @. s = u * cos(ω * t[1]) + 0 * kʸ
 
@@ -198,6 +197,7 @@ for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 
             # ∇ᵖψ
             @. u = -1.0 * (∂y * ψ)
             # go back to real space 
+            P⁻¹ * u
             P⁻¹ * ψ
             @. s = u * cos(ω * t[1]) + 0 * kʸ
 
@@ -215,6 +215,7 @@ for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 
             # ∇ᵖψ
             @. u = -1.0 * (∂y * ψ)
             # go back to real space 
+            P⁻¹ * u
             P⁻¹ * ψ
             @. s = u * cos(ω * t[1]) + 0 * kʸ
 
@@ -296,9 +297,9 @@ for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 
         lines!(ax22, mutheta2[64, :], color=:black, linewidth=2)
         amp = maximum(mutheta2[64, :])
         lines!(ax22, amp .* cos.(ω .* collect(1:iend) * Δt), color=:red, linewidth=2)
-        save("fixed_zeroth_time_dependentSummary_plot_ω_" * string(ω)  * "_ensemble_" * string(realizations) * ".png", fig2)
+        save("time_dependentSummary_plot_ω_" * string(ω)  * "_ensemble_" * string(realizations) * "_zeroth.png", fig2)
         using HDF5
-        fid = h5open("fixed_zeroth_time_dependent_ω_" * string(ω) * "_ensemble_" * string(realizations) * ".hdf5", "w")
+        fid = h5open("time_dependent_ω_" * string(ω) * "_ensemble_" * string(realizations) * "_zeroth.hdf5", "w")
         fid["molecular_diffusivity"] = κ
         fid["streamfunction_amplitude"] = Array(A)
         fid["phase increase"] = phase_speed

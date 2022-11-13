@@ -4,10 +4,9 @@ using GLMakie
 difflist = ComplexF64[]
 indmaxlist = Int[]
 omegalist = Float64[]
-# hfile1 = h5open("time_dependent_ω_0.0006283185307179586_ensemble_1000.hdf5", "r")
+
 for T in [10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.4, 0.3, 0.2, 0.1]
     hfile1 = h5open("time_dependent_ω_" * string(2π / T) * "_ensemble_1000.hdf5", "r")
-    # hfile1 = h5open("time_dependent_ω_0.25132741228718347_ensemble_1000.hdf5", "r")
     t = read(hfile1["time"])
     μ = read(hfile1["ensemble mean"])
     ϕ = read(hfile1["ensemble flux"])
@@ -37,3 +36,14 @@ lines!(ax11, omegalist, abs.(imag.(difflist)), label="|imaginary|", color = :gre
 scatter!(ax11, omegalist, abs.(imag.(difflist)), label="|imaginary|", color=:green)
 axislegend(ax11, merge=true, unique=false)
 display(fig)
+
+
+fig2 = Figure()
+phases = [angle(real(difflist[i]) + im * abs(imag(difflist[i]))) for i in 1:length(difflist)]
+ax11 = Axis(fig2[1, 1], xlabel="ω", ylabel= "⟨u'c'⟩ / ⟨∂ˣc⟩")
+lines!(ax11, omegalist, abs.(difflist), label="magnitude", color = :blue)
+scatter!(ax11, omegalist, abs.(difflist), label="magnitude", color=:blue)
+lines!(ax11, omegalist, phases ./ 2π, label="phase / 2π", color = :green)
+scatter!(ax11, omegalist, phases ./ 2π, label="phase / 2π", color=:green)
+axislegend(ax11, merge=true, unique=false)
+display(fig2)

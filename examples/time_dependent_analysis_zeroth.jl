@@ -19,10 +19,10 @@ for T in Tlist
     if m > length(t)
         m = 2000
     end
-    ϕ̂ = mean(ϕ, dims = 1)[end-m+1:end]
-    μ̂ = mean(μ, dims = 1)[end-m+1:end]
-    forcing = sin.(ω * t[end-m+1:end])   
-    f̂ = fft(forcing)[2] 
+    ϕ̂ = mean(ϕ, dims=1)[end-m+1:end]
+    μ̂ = mean(μ, dims=1)[end-m+1:end]
+    forcing = sin.(ω * t[end-m+1:end])
+    f̂ = fft(forcing)[2]
     indmax = argmax(abs.(fft(ϕ̂)[:]))
     if indmax > 1
         indmax = 2
@@ -51,10 +51,15 @@ display(fig)
 
 fig2 = Figure()
 phases = -[angle(real(difflist[i]) + im * imag(difflist[i])) for i in 1:length(difflist)]
-ax11 = Axis(fig2[1, 1], xlabel="ω", ylabel= "⟨u'c'⟩ / ⟨∂ˣc⟩")
-lines!(ax11, omegalist, abs.(difflist), label="magnitude", color = :blue)
+ax11 = Axis(fig2[1, 1], xlabel="ω", ylabel="magnitude", yticklabelcolor = :blue, ytickcolor = :blue, leftspinecolor = :blue, ylabelcolor = :blue)
+ax12 = Axis(fig2[1, 1], xlabel="ω", ylabel="phase", yticklabelcolor= :green, ytickcolor = :green, leftspinecolor = :blue, rightspinecolor = :green, yaxisposition = :right, ylabelcolor = :green)
+lines!(ax11, omegalist, abs.(difflist), label="magnitude", color=:blue)
 scatter!(ax11, omegalist, abs.(difflist), label="magnitude", color=:blue)
-lines!(ax11, omegalist, phases ./ 2π, label="phase / 2π", color = :green)
-scatter!(ax11, omegalist, phases ./ 2π, label="phase / 2π", color=:green)
-axislegend(ax11, merge=true, unique=false)
+# lines!(ax11, omegalist, phases ./ 2π, label="phase / 2π", color=:green, )
+# scatter!(ax11, omegalist, phases ./ 2π, label="phase / 2π", color=:green)
+lines!(ax12, omegalist, phases, label="phase", color=:green)
+scatter!(ax12, omegalist, phases, label="phase", color=:green)
+# axislegend(ax11, merge=true, unique=false, position = :cc)
+# axislegend(ax12, merge=true, unique=false, position = :rc)
 display(fig2)
+

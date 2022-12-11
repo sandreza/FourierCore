@@ -138,7 +138,7 @@ n_state_rhs_symmetric!(θ̇s, θs, simulation_parameters)
 
 rhs! = n_state_rhs_symmetric!
 
-tend = 10.0
+tend = 100.0
 iend = ceil(Int, tend / Δt)
 
 # runge kutta 4 timestepping
@@ -150,7 +150,7 @@ for i in ProgressBar(1:iend)
     rhs!(k₃, θ̃, simulation_parameters)
     [θ̃[i] .= θs[i] .+ Δt * k₃[i] * 0.5 for i in eachindex(θs)]
     rhs!(k₄, θ̃, simulation_parameters)
-    [θs[i] += Δt / 6 * (k₁[i] + 2 * k₂[i] + 2 * k₃[i] + k₄[i]) for i in eachindex(θs)]
+    [θs[i] .+= Δt / 6 * (k₁[i] + 2 * k₂[i] + 2 * k₃[i] + k₄[i]) for i in eachindex(θs)]
 end
 
 println("maximum value of theta ", maximum(real.(θs[1] + θs[2])))

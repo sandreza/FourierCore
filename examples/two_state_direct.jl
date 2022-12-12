@@ -14,7 +14,7 @@ arraytype = CuArray
 N = 2^7 # number of gridpoints
 M = 2 # number of states
 U = 1.0 # amplitude factor
-Q = ou_transition_matrix(M - 1)
+Q = ou_transition_matrix(M - 1) 
 A = U .* collect(range(-sqrt(M - 1), sqrt(M - 1), length=M))
 p = steady_state(Q)
 Λ, V = eigen(Q)
@@ -58,7 +58,8 @@ vθ = similar(ψ)
 
 # source
 s = similar(ψ)
-@. s = sin(kˣ[4] * x) * sin(kʸ[4] * y) # could also set source term to zero
+index = 2
+@. s = sin(kˣ[index] * x) * sin(kʸ[index] * y) # could also set source term to zero
 
 # operators
 ∂x = im * kˣ
@@ -67,11 +68,14 @@ s = similar(ψ)
 κ = 0.01
 
 # set equal to diffusive solution 
-tmp = (kˣ[4]^2 + kʸ[4]^2)
+tmp = (kˣ[index]^2 + kʸ[index]^2)
 for (i, θ) in enumerate(θs)
     pⁱ = p[i]
     θ .= (s ./ (tmp * κ)) .* pⁱ
 end
+
+println("maximum value of theta before ", maximum(real.(sum(θs))))
+
 
 # plan ffts
 P = plan_fft!(ψ)
@@ -153,7 +157,7 @@ for i in ProgressBar(1:iend)
     [θs[i] .+= Δt / 6 * (k₁[i] + 2 * k₂[i] + 2 * k₃[i] + k₄[i]) for i in eachindex(θs)]
 end
 
-println("maximum value of theta ", maximum(real.(θs[1] + θs[2])))
+println("maximum value of theta after ", maximum(real.(sum(θs))))
 
 # plot
 using GLMakie
@@ -162,7 +166,7 @@ yA = Array(y)[:]
 fig = Figure()
 colorrange = (-1, 1)
 for i in eachindex(θs)
-    ax = Axis(fig[1, i];  title="state $i")
+    ax = Axis(fig[1, i];  title="pwca $i")
     θA = real.(Array(θs[i]))
     contourf!(ax, xA, yA, θA, colormap=:balance)
 

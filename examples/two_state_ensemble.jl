@@ -13,7 +13,7 @@ arraytype = CuArray
 Ω = S¹(2π)^2
 N = 2^7 # number of gridpoints
 M = 2 # number of states
-Nens = 1000 # number of ensemble members
+Nens = 100 # number of ensemble members, 1000 is good
 U = 1.0 # amplitude factor
 Q = ou_transition_matrix(M - 1)
 Us = U .* collect(range(-sqrt(M - 1), sqrt(M - 1), length=M))
@@ -137,7 +137,7 @@ n_state_rhs_ensemble_symmetric!(θ̇s, θs, simulation_parameters)
 
 rhs! = n_state_rhs_ensemble_symmetric!
 
-tend = 100.0
+tend = 2.0
 iend = ceil(Int, tend / Δt)
 
 PF = exp(Q * Δt)
@@ -158,38 +158,6 @@ end
 println("maximum value of ensemble mean theta after ", maximum(real.(mean(θs))))
 
 # plot
-
-using GLMakie
-xA = Array(x)[:]
-yA = Array(y)[:]
-fig = Figure()
-colorrange = (-1, 1)
-for i in eachindex(θs)
-    if i < 6
-        ax = Axis(fig[1, i]; title="state $i")
-        θA = real.(Array(θs[i]))
-        contourf!(ax, xA, yA, θA, colormap=:balance)
-    end
-
-end
-
-θA = Array(real.(mean(θs)))
-ax2 = Axis(fig[2, 1]; title="mean state")
-contourf!(ax2, xA, yA, θA, colormap=:balance)
-
-display(fig)
-
-last_time = [A_indices[k][end] for k in eachindex(A_indices)]
-index1 = last_time .== 1
-index2 = last_time .== 2
-θA1 = Array(real.(mean(θs[index1]))) * p[1]
-θA2 = Array(real.(mean(θs[index2]))) * p[2]
-
-fig = Figure()
-ax1 = Axis(fig[1, 1]; title="weighted average 1")
-ax2 = Axis(fig[1, 2]; title="weighted average 2")
-contourf!(ax1, xA, yA, θA1, colormap=:balance)
-contourf!(ax2, xA, yA, θA2, colormap=:balance)
 
 using GLMakie
 xA = Array(x)[:]
@@ -217,7 +185,7 @@ for i in 1:M
 end
 display(fig)
 
-
+#=
 using HDF5
 fid = h5open("states_" * string(M) * "_ensemble_members_" * string(Nens) * ".hdf5", "w")
 fid["molecular_diffusivity"] = κ
@@ -235,7 +203,4 @@ for i in 1:M
     fid["spectral state $i"] = Spectral_States[i]
 end
 close(fid)
-
-#=
-last_time = [A_indices[k][end]] for k in eachindex(A_indices)]
 =#

@@ -142,7 +142,7 @@ n_state_rhs_symmetric!(θ̇s, θs, simulation_parameters)
 
 rhs! = n_state_rhs_symmetric!
 
-tend = 100.0
+tend = 2.0
 iend = ceil(Int, tend / Δt)
 
 # runge kutta 4 timestepping

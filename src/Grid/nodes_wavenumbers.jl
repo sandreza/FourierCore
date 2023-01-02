@@ -31,6 +31,7 @@ function wavenumbers(N; L = 2π)
     down = collect(-N:1:-1)
     indices = up
     indices[div(N,2)+1:end] = down[div(N,2)+1:end]
+    indices[1] = 0 # edge case
     wavenumbers = 2π / L .* indices
     return wavenumbers
 end

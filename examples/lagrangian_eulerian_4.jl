@@ -29,16 +29,14 @@ kʸ = wavenumbers[2]
 # construct filter
 kxmax = maximum(kˣ)
 kymax = maximum(kˣ)
-filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ 2 / 3 * kxmax
-@. filter = filter * (0 * abs(kˣ) .+ 1 * abs(kʸ) ≤ 2 / 3 * kxmax)
-filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ Inf
 
 # now define the random field 
 wavemax = 3 # 3
 𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
-A = @. (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-1.0) # @. (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-1)
+A = @. (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-0.0) # @. (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-1)
+# A = @. exp(-(𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ))
 A[A.==Inf] .= 0.0
 φ = arraytype(2π * rand(size(A)...))
 field = arraytype(zeros(N[1], N[2]))
@@ -152,7 +150,8 @@ end
 
 
 Δt = 0.01 / amplitude_factor
-iend = floor(Int, 100 * 5 * amplitude_factor)
+timeend = 1
+iend = floor(Int, 100 * timeend * amplitude_factor)
 
 u²_lagrangian_particle = zeros(iend)
 uv_lagrangian_particle = zeros(iend)
@@ -212,15 +211,18 @@ ax1 = fig3[1, 1] = Axis(fig3, xlabel="time", ylabel="u²")
 ylims!(ax1, -0.2 * amplitude_factor^2, 1.2 * amplitude_factor^2)
 tlist = collect(0:iend-1) .* Δt
 eulerian_decorrelation = @. amplitude_factor^2 * exp(-tlist)
-lines!(ax1, tlist, u²_lagrangian_particle[:], color=:green, linewidth=3)
-lines!(ax1, tlist, eulerian_decorrelation, color=:red, linewidth=3)
+lines!(ax1, tlist, u²_lagrangian_particle[:], color=:green, linewidth=3, label = "lagrangian particle")
+lines!(ax1, tlist, eulerian_decorrelation, color=:red, linewidth=3, label = "eulerian decorrelation")
 ax2 = fig3[1, 2] = Axis(fig3, xlabel="time", ylabel="uv")
 ylims!(ax2, minimum(vu_lagrangian_particle[:]) * 1.1, maximum(uv_lagrangian_particle[:]) * 1.1)
-lines!(ax2, uv_lagrangian_particle[:], color=:green, linewidth=3)
+lines!(ax2, uv_lagrangian_particle[:], color=:green, linewidth=3, label = "lagrangian particle")
 ax3 = fig3[2, 1] = Axis(fig3, xlabel="time", ylabel="vu")
 ylims!(ax3, minimum(vu_lagrangian_particle[:]) * 1.1, maximum(vu_lagrangian_particle[:]) * 1.1)
-lines!(ax3, vu_lagrangian_particle[:], color=:green, linewidth=3)
+lines!(ax3, vu_lagrangian_particle[:], color=:green, linewidth=3, label = "lagrangian particle")
 ax4 = fig3[2, 2] = Axis(fig3, xlabel="time", ylabel="v²")
 ylims!(ax4, -0.2 * amplitude_factor^2, 1.2 * amplitude_factor^2)
-lines!(ax4, tlist, v²_lagrangian_particle[:], color=:green, linewidth=3)
-lines!(ax4, tlist, eulerian_decorrelation, color=:red, linewidth=3)
+lines!(ax4, tlist, v²_lagrangian_particle[:], color=:green, linewidth=3, label = "lagrangian particle")
+lines!(ax4, tlist, eulerian_decorrelation, color=:red, linewidth=3, label = "eulerian decorrelation")
+for ax in [ax1, ax2, ax3, ax4]
+    axislegend(ax, position=:rt)
+end

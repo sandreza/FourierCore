@@ -140,7 +140,7 @@ println("starting simulations")
 tend = 5.0
 iend = ceil(Int, tend / Δt)
 
-realizations = 1000
+realizations = 100
 
 u²_lagrangian = zeros(N, N, iend)
 uv_lagrangian = copy(u²_lagrangian)
@@ -172,10 +172,10 @@ for j in ProgressBar(1:realizations)
         vτL = copy(θs[2])
 
         # correlate current with past
-        u²_lagrangian[:, :, i] .+= real.(Array(uτL .* u0)) ./ realizations
-        uv_lagrangian[:, :, i] .+= real.(Array(uτL .* v0)) ./ realizations
-        vu_lagrangian[:, :, i] .+= real.(Array(vτL .* u0)) ./ realizations
-        v²_lagrangian[:, :, i] .+= real.(Array(vτL .* v0)) ./ realizations
+        u²_lagrangian[:, :, i] .+= A[1] * real.(Array(uτL .* u)) ./ realizations
+        uv_lagrangian[:, :, i] .+= A[1] * real.(Array(uτL .* v)) ./ realizations
+        vu_lagrangian[:, :, i] .+= A[1] * real.(Array(vτL .* u)) ./ realizations
+        v²_lagrangian[:, :, i] .+= A[1] * real.(Array(vτL .* v)) ./ realizations
 
         u²_eulerian[:, :, i] .+= A[1] * real.(Array(u .* u0)) ./ realizations
         uv_eulerian[:, :, i] .+= A[1] * real.(Array(u .* v0)) ./ realizations
@@ -222,6 +222,8 @@ u² = Array(real.(u .* u))
 uv = Array(real.(u .* v))
 vu = Array(real.(v .* u))
 v² = Array(real.(v .* v))
+xA = Array(x)[:]
+yA = Array(y)[:]
 contourf!(ax11, xA, yA, u², colormap=:plasma)
 contourf!(ax12, xA, yA, uv, colormap=:balance)
 contourf!(ax13, xA, yA, vu, colormap=:balance)
@@ -250,13 +252,13 @@ contourf!(ax34, xA, yA, Δt * sum(v²_eulerian, dims=3)[:, :, 1], colormap=:plas
 fig2 = Figure()
 for i in 1:4
     for j in 1:4
-        ax = Axis(fig2[i, j]; title = "index ($i,$j)")
-        index1 = 1 + (i-1) * 10
-        index2 = 96 - (j-1) * 10
+        ax = Axis(fig2[i, j]; title="index ($i,$j)")
+        index1 = 1 + (i - 1) * 10
+        index2 = 96 - (j - 1) * 10
         tmp = u²_eulerian[index1, index2, :]
-        lines!(ax, tmp, color=:red, linewidth = 3)
-        lines!(ax, tmp[1] * exp.(-collect(0:iend-1) .* Δt), color=:orange, linewidth = 3)
-        lines!(ax, u²_lagrangian[index1, index2, :], color=:blue, linewidth =3 )
+        lines!(ax, tmp, color=:red, linewidth=3)
+        lines!(ax, tmp[1] * exp.(-collect(0:iend-1) .* Δt), color=:orange, linewidth=3)
+        lines!(ax, u²_lagrangian[index1, index2, :], color=:blue, linewidth=3)
     end
 end
 
@@ -267,7 +269,7 @@ end
 # v = (∂x * ψ); => v = -1.0 * kˣ[2] * sin(kˣ[2] * x) * cos(kʸ[2] * y)
 # kʸ[2] = kˣ[2] = 1.0
 function rhs_lagrangian!(du, u, A)
-    du[1] =  1.0 * cos(u[1]) * sin(u[2]) * A
+    du[1] = 1.0 * cos(u[1]) * sin(u[2]) * A
     du[2] = -1.0 * sin(u[1]) * cos(u[2]) * A
     return nothing
 end
@@ -293,30 +295,30 @@ u²_lagrangian_particle = zeros(iend)
 uv_lagrangian_particle = zeros(iend)
 vu_lagrangian_particle = zeros(iend)
 v²_lagrangian_particle = zeros(iend)
-
 s = zeros(2)
 tmpA2s = []
-
 for j in ProgressBar(1:realizations)
     tmpA = generate(PF, iend)
     push!(tmpA2s, tmpA)
     U_history = Us[tmpA]
     # initialize with velocity field
-    i_index = 1
-    j_index = 96
+    i_index = 64
+    j_index = 76
     s[1] = x_A[i_index]
     s[2] = y_A[j_index]
     # remember the initial condition
-    u0 = real(u_A[i_index, j_index])
-    v0 = real(v_A[i_index, j_index])
+    # need to account for the flow field changing in time
+    u0 = U_history[1] * real(u_A[i_index, j_index])
+    v0 = U_history[1] * real(v_A[i_index, j_index])
     for i = 1:iend
         uτL = copy(s[1])
         vτL = copy(s[2])
         i_index_now = argmin(abs.(s[1] .- x_A[:]))
         j_index_now = argmin(abs.(s[2] .- y_A[:]))
 
-        uτL = real(u_A[i_index_now, j_index_now])
-        vτL = real(v_A[i_index_now, j_index_now])
+        # need to account for the flow field changing in time
+        uτL = U_history[i] * real(u_A[i_index_now, j_index_now])
+        vτL = U_history[i] * real(v_A[i_index_now, j_index_now])
 
         # correlate current with past
         u²_lagrangian_particle[i] += real.(uτL .* u0) ./ realizations
@@ -326,11 +328,34 @@ for j in ProgressBar(1:realizations)
 
         # fourth order runge kutta on deterministic part
         snew = rk4(rhs_lagrangian!, s, Δt, U_history[i])
-        s .= snew
+        s .= (snew .% 2π) # just in case
 
     end
 end
 
+i_index = 64
+j_index = 76
+fig3 = Figure()
+ax1 = fig3[1, 1] = Axis(fig3, xlabel="time", ylabel="u²")
+ylims!(ax1, -0.1, 0.6)
+lines!(ax1, u²_lagrangian_particle[:], color=:green, linewidth=3)
+lines!(ax1, u²_lagrangian[i_index, j_index, :], color=:blue, linewidth=3)
+lines!(ax1, u²_eulerian[i_index, j_index, :], color=:red, linewidth=3)
+ax2 = fig3[1, 2] = Axis(fig3, xlabel="time", ylabel="uv")
+ylims!(ax2, minimum(vu_lagrangian_particle[:]) * 1.1, maximum(uv_lagrangian_particle[:]) * 1.1)
+lines!(ax2, uv_lagrangian_particle[:], color=:green, linewidth=3)
+lines!(ax2, uv_lagrangian[i_index, j_index, :], color=:blue, linewidth=3)
+lines!(ax2, uv_eulerian[i_index, j_index, :], color=:red, linewidth=3)
+ax3 = fig3[2, 1] = Axis(fig3, xlabel="time", ylabel="vu")
+ylims!(ax3, minimum(vu_lagrangian_particle[:]) * 1.1, maximum(vu_lagrangian_particle[:]) * 1.1)
+lines!(ax3, vu_lagrangian_particle[:], color=:green, linewidth=3)
+lines!(ax3, vu_lagrangian[i_index, j_index, :], color=:blue, linewidth=3)
+lines!(ax3, vu_eulerian[i_index, j_index, :], color=:red, linewidth=3)
+ax4 = fig3[2, 2] = Axis(fig3, xlabel="time", ylabel="v²")
+ylims!(ax4, minimum(v²_lagrangian_particle[:]) * 1.1, maximum(v²_lagrangian_particle[:]) * 1.1)
+lines!(ax4, v²_lagrangian_particle[:], color=:green, linewidth=3)
+lines!(ax4, v²_lagrangian[i_index, j_index, :], color=:blue, linewidth=3)
+lines!(ax4, v²_eulerian[i_index, j_index, :], color=:red, linewidth=3)
 
 ##
 #=
@@ -351,3 +376,20 @@ ax = Axis(fig3[1,1])
 scatter!(ax, acor, color = :red)
 scatter!(ax, exp.( -collect(0:iend-1) .* Δt), color = :blue)
 =#
+
+using HDF5
+filename = "two_state_lagrangian_vs_eulerian" * "_members_" * string(realizations) * ".hdf5"
+fid = h5open(filename, "w")
+fid["molecular_diffusivity"] = κ
+fid["streamfunction"] = ψ_A
+fid["phase increase"] = phase_speed
+fid["time"] = collect(Δt * (2:iend))
+fid["lagrangian_u²"] = Δt * sum(u²_lagrangian, dims=3)[:, :, 1]
+fid["lagrangian_uv"] = Δt * sum(uv_lagrangian, dims=3)[:, :, 1]
+fid["lagrangian_vu"] = Δt * sum(vu_lagrangian, dims=3)[:, :, 1]
+fid["lagrangian_v²"] = Δt * sum(v²_lagrangian, dims=3)[:, :, 1]
+fid["eulerian_u²"] = Δt * sum(u²_eulerian, dims=3)[:, :, 1]
+fid["eulerian_uv"] = Δt * sum(uv_eulerian, dims=3)[:, :, 1]
+fid["eulerian_vu"] = Δt * sum(vu_eulerian, dims=3)[:, :, 1]
+fid["eulerian_v²"] = Δt * sum(v²_eulerian, dims=3)[:, :, 1]
+close(fid)

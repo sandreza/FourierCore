@@ -145,11 +145,11 @@ r_A = Array(@. sqrt((x - 2π)^2 + (y - 2π)^2))
 
 
 
-simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter)
+simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter, ∂x, ∂y, κ, Δ, κΔθ)
 size_of_A = size(A)
 
 t = [0.0]
-tend = 50.0 # 50.0 is good for the default
+tend = 200.0 # 50.0 is good for the default
 iend = ceil(Int, tend / Δt)
 global Δt_old = Δt
 
@@ -159,7 +159,8 @@ realizations = 1000
 rhs! = θ_rhs_symmetric!
 
 # T = 10.0
-for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.4, 0.3, 0.2, 0.1])
+# [10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.4, 0.3, 0.2, 0.1]
+for T in ProgressBar([50.0, 100.0])
     nT = ceil(Int, T / Δt_old)
     Δt = T / nT
     iend = ceil(Int, tend / Δt)
@@ -206,10 +207,6 @@ for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 
 
             rhs!(k₄, θ̃, simulation_parameters)
             @. θ += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
-
-            # update stochastic part 
-            # φ_rhs_normal!(φ̇, φ, rng)
-            # @. φ += sqrt(Δt) * φ̇
 
             # save output
             # tmp = real.(Array(θ))

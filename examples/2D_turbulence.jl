@@ -33,9 +33,9 @@ filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ 2 / 3 * kxmax
 @. filter = filter * (0 * abs(kˣ) .+ 1 * abs(kʸ) ≤ 2 / 3 * kxmax)
 
 # DEFINE TIME END 
-tend = 6000
+tend = 500
 # now define the random field 
-wavemax = 3
+wavemax = 7
 𝓀 = arraytype([-wavemax, 0.0, wavemax]) # arraytype(1.0 .* [-wavemax, -wavemax + 1, wavemax - 1, wavemax])# arraytype(collect(-wavemax:1:wavemax))
 𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
 𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
@@ -107,7 +107,7 @@ P⁻¹ = plan_ifft!(ψ)
 Δt = Δx / (2π) * 1.0
 κ = 1.0 * Δx^2
 ν = 0.5 * Δx^2
-ν_h = 0.05
+ν_h = 0.001
 hypoviscocity_power = 1
 dissipation_power = 2
 # Dissipation 
@@ -334,15 +334,15 @@ display(fig)
 
 =#
 
-fig = Figure()
+fig2 = Figure()
 
-ax = Axis(fig[1, 1])
+ax = Axis(fig2[1, 1])
 A_ζ = Array(real.(ζ))
 tmp = minimum(abs.(extrema(A_ζ)))
 
-sl_x = Slider(fig[2, 1], range=1:length(θ_t), startvalue=1)
+sl_x = Slider(fig2[2, 1], range=1:length(θ_t), startvalue=1)
 o_index = sl_x.value
 
 field = @lift ζ_t[$o_index]
 heatmap!(ax, field, colormap=:balance, colorrange=(-tmp, tmp))
-display(fig)
+display(fig2)

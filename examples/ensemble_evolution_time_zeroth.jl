@@ -145,19 +145,20 @@ r_A = Array(@. sqrt((x - 2π)^2 + (y - 2π)^2))
 
 
 
-simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter)
+simulation_parameters = (; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, uθ, vθ, ∂ˣuθ, ∂ʸvθ, s, P, P⁻¹, filter, ∂x, ∂y, κ, Δ, κΔθ)
 size_of_A = size(A)
 
 t = [0.0]
-tend = 50.0 # 50.0 is good for the default
+tend = 4*50.0 # 50.0 is good for the default
 iend = ceil(Int, tend / Δt)
 global Δt_old = Δt
 
-realizations = 1000
+realizations = 11
 
 rhs! = θ_rhs_symmetric!
 
-for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.4, 0.3, 0.2, 0.1])
+# [10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.4, 0.3, 0.2, 0.1]
+for T in ProgressBar([50.0, 100.0])
     nT = ceil(Int, T / Δt_old)
     Δt = T / nT
     iend = ceil(Int, tend / Δt)
@@ -278,7 +279,9 @@ for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 
     end
     =#
     begin
-        fig2 = Figure(resolution=(1400, 600))
+        start = 1 # - floor(Int, iend/2)
+        skip = 10
+        fig2 = Figure(resolution=(2*700, 2*300))
         ax11 = Axis(fig2[1, 1]; title="⟨θ⟩: averaged over y", xlabel="spatial index", ylabel="time index")
         ax21 = Axis(fig2[2, 1]; title="⟨θ⟩: black = index 32 of above, red = scaled forcing", xlabel="time index", ylabel="value")
         ax12 = Axis(fig2[1, 2]; title="⟨uθ⟩: averaged over y", xlabel="spatial index", ylabel="time index")
@@ -288,15 +291,15 @@ for T in ProgressBar([10000.0, 25.0, 20.0, 15.0, 10.0, 5.0, 4.0, 3.0, 2.0, 1.0, 
         mutheta2 = mean(uθ_timeseries_A, dims=2)[:, 1, :]
         mtheta2max = maximum(mtheta2)
         mutheta2max = maximum(mutheta2)
-        heatmap!(ax11, mtheta2, colorrange=(-mtheta2max, mtheta2max), colormap=:balance)
-        heatmap!(ax12, mutheta2, colorrange=(-mutheta2max, mutheta2max), colormap=:balance)
-        lines!(ax21, mtheta2[32, :], color=:black, linewidth=2)
-        amp = maximum(mtheta2[32, :])
-        lines!(ax21, amp .* cos.(ω .* collect(1:iend) * Δt), color=:red, linewidth=2)
+        heatmap!(ax11, mtheta2[:, start:skip:iend], colorrange=(-mtheta2max, mtheta2max), colormap=:balance)
+        heatmap!(ax12, mutheta2[:, start:skip:iend], colorrange=(-mutheta2max, mutheta2max), colormap=:balance)
+        lines!(ax21, mtheta2[32, start:skip:iend], color=:black, linewidth=2)
+        amp = maximum(mtheta2[32, start:skip:iend])
+        lines!(ax21, amp .* cos.(ω .* collect(start:skip:iend) * Δt), color=:red, linewidth=2)
 
-        lines!(ax22, mutheta2[64, :], color=:black, linewidth=2)
-        amp = maximum(mutheta2[64, :])
-        lines!(ax22, amp .* cos.(ω .* collect(1:iend) * Δt), color=:red, linewidth=2)
+        lines!(ax22, mutheta2[64, start:skip:iend], color=:black, linewidth=2)
+        amp = maximum(mutheta2[64, start:skip:iend])
+        lines!(ax22, amp .* cos.(ω .* collect(start:skip:iend) * Δt), color=:red, linewidth=2)
         save("time_dependentSummary_plot_ω_" * string(ω)  * "_ensemble_" * string(realizations) * "_zeroth.png", fig2)
         using HDF5
         fid = h5open("time_dependent_ω_" * string(ω) * "_ensemble_" * string(realizations) * "_zeroth.hdf5", "w")

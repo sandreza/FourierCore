@@ -17,7 +17,7 @@ N = (2^7, 2^7)      # number of gridpoints
 
 # for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
 di = 1
-amplitude_factor = 1.0
+amplitude_factor = 10.0
 phase_speed = 1.0
 
 grid = FourierGrid(N, Ω, arraytype=arraytype)
@@ -124,7 +124,7 @@ v₀ = sqrt(real(mean(v .* v))) # / sqrt(2)
 κ = 0.01 # 0.01 * (2^7 / N[1])^2# amplitude_factor * 2 * Δx^2
 cfl = 0.1
 Δx = (x[2] - x[1])
-advective_Δt = cfl * Δx / amplitude_factor
+advective_Δt = cfl * Δx / amplitude_factor * 10
 diffusive_Δt = cfl * Δx^2 / κ 
 Δt = minimum([advective_Δt, diffusive_Δt]) 
 
@@ -271,6 +271,8 @@ for j in ProgressBar(1:realizations)
     # println("finished realization ", j)
     @. θ̅ += θ / realizations
 end
+
+##
 
 toc = Base.time()
 println("the time for the simulation was ", toc - tic, " seconds")

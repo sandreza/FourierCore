@@ -17,7 +17,7 @@ N = (2^7, 2^7)      # number of gridpoints
 
 # for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
 di = 1
-amplitude_factor = 1.0 # normalized later
+amplitude_factor = 10.0 # normalized later
 phase_speed = sqrt(1.0 * 0.04) # makes the decorrelation time 1
 
 grid = FourierGrid(N, Ω, arraytype=arraytype)
@@ -90,6 +90,7 @@ P⁻¹ = plan_ifft!(ψ)
 
 ## Get amplitude scaling 
 ekes = Float64[]
+u₀s = Float64[]
 for j in ProgressBar(1:1000)
     # new realization of flow
     rand!(rng, φ)
@@ -102,10 +103,11 @@ for j in ProgressBar(1:1000)
     @. v = ∂x * ψ
     P⁻¹ * ψ
     P⁻¹ * u
-    P⁻¹ * v 
-    push!(ekes, 0.5 * mean( real(u).^2 + real(v).^2 ) )
+    P⁻¹ * v
+    push!(ekes, 0.5 * mean(real(u) .^ 2 + real(v) .^ 2))
+    push!(u₀s, maximum([maximum(real.(u)), maximum(real.(u))]))
 end
-
+u₀ = maximum(u₀s)
 A ./= mean(sqrt.(ekes))
 A .*= amplitude_factor
 
@@ -118,10 +120,10 @@ wait(event)
 # κ = 2 / 2^8 # fixed diffusivity
 # κ = 2e-4
 Δx = x[2] - x[1]
-κ = 0.01 # 0.01 * (2^7 / N[1])^2# amplitude_factor * 2 * Δx^2
+κ = 5e-3 # 0.01 * (2^7 / N[1])^2# amplitude_factor * 2 * Δx^2
 cfl = 0.1
 Δx = (x[2] - x[1])
-advective_Δt = cfl * Δx / amplitude_factor  
+advective_Δt = cfl * Δx / amplitude_factor * 0.5
 diffusive_Δt = cfl * Δx^2 / κ
 Δt = minimum([advective_Δt, diffusive_Δt])
 
@@ -141,7 +143,7 @@ for index_choice in ProgressBar(index_choices)
 end
 
 t = [0.0]
-tend = 1.0 # might want to make this a function of γ, κ, amplitude_factor, etc.
+tend = 15.0 # might want to make this a function of γ, κ, amplitude_factor, etc.
 
 iend = ceil(Int, tend / Δt)
 
@@ -169,7 +171,7 @@ eulerian_list = copy(lagrangian_list)
 theta_list = copy(lagrangian_list)
 u_list = copy(lagrangian_list)
 
-realizations = 10
+realizations = 1
 tmpA = []
 
 

@@ -34,7 +34,7 @@ end
 
 
 function stream_function!(field, A, 𝓀ˣ, 𝓀ʸ, x, y, φ; comp_stream=Event(CUDADevice()))
-    kernel! = random_phase_kernel_2!(CUDADevice(), 256)
+    kernel! = random_phase_kernel!(CUDADevice(), 256)
     Nx = length(𝓀ˣ)
     Ny = length(𝓀ʸ)
     event = kernel!(field, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, Nx, Ny, ndrange=size(field), dependencies=(comp_stream,))
@@ -209,9 +209,6 @@ function θ_rhs_symmetric_ensemble!(θ̇, θ, simulation_parameters)
     @. θ̇ = -(u * ∂ˣθ + v * ∂ʸθ + ∂ˣuθ + ∂ʸvθ) * 0.5 + κΔθ + u * s¹ + s
     return nothing
 end
-
-
-
 
 function θ_rhs_zeroth!(θ̇, θ, params)
     #(; ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, u, v, ∂ˣθ, ∂ʸθ, s, P, P⁻¹, filter) = params

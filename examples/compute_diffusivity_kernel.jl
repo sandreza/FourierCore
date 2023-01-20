@@ -1,141 +1,35 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
-using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2, HDF5
-# using GLMakie
+using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
+# using GLMakie, HDF5
 using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
-# jld_name = "high_order_timestep_spatial_tracer_"
-jld_name = "default_streamfunction_"
-include("transform.jl")
+# grab computational kernels: functions defined
 include("random_phase_kernel.jl")
-# using GLMakie
-save_fields = false
-using CUDA
-arraytype = CuArray
-Ω = S¹(4π)^2
-N = 2^7 # number of gridpoints
-phase_speed = 1.0
+# initialize fields: variables and domain defined here
+include("initialize_fields.jl")
 
 
-for λ ∈ ProgressBar([0.01, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0])
-
-    filename = "effective_diffusivities_amp1_λ_" * string(λ) * ".hdf5"
+# for λ ∈ ProgressBar([0.01, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0])
+for amplitude_factor in amplitude_factors
+    λ = 0
+    filename = "effective_diffusivities_amp_" * string(amplitude_factor) * ".hdf5"
     fid = h5open(filename, "w")
     create_group(fid, "effective_diffusivities")
     create_group(fid, "amplitude_factor")
 
+    phase_speed = 1.0 # sqrt(1.0 * 0.04) # makes the decorrelation time 1ish
 
-    # for (di, amplitude_factor) in ProgressBar(enumerate([0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0]))
-    # for di in ProgressBar(1:1)
-    di = 1
-    amplitude_factor = 1.0 # 1.0 # 0.5
-
-    grid = FourierGrid(N, Ω, arraytype=arraytype)
-    nodes, wavenumbers = grid.nodes, grid.wavenumbers
-
-    x = nodes[1]
-    y = nodes[2]
-    kˣ = wavenumbers[1]
-    kʸ = wavenumbers[2]
-    # construct filter
-    kxmax = maximum(kˣ)
-    kymax = maximum(kˣ)
-    filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ 2 / 3 * kxmax
-    @. filter = filter * (0 * abs(kˣ) .+ 1 * abs(kʸ) ≤ 2 / 3 * kxmax)
-    filter = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ Inf
-
-
-    # now define the random field 
-    wavemax = 3
-    𝓀 = arraytype(collect(-wavemax:0.5:wavemax))
-    𝓀ˣ = reshape(𝓀, (length(𝓀), 1))
-    𝓀ʸ = reshape(𝓀, (1, length(𝓀)))
-    A = @. (𝓀ˣ * 𝓀ˣ + 𝓀ʸ * 𝓀ʸ)^(-1)
-    A[A.==Inf] .= 0.0
-    φ = arraytype(2π * rand(size(A)...))
-    field = arraytype(zeros(N, N))
-
-    ##
-    # Fields 
-    # velocity
-    ψ = arraytype(zeros(ComplexF64, N, N))
-    u = similar(ψ)
-    v = similar(ψ)
-
-    # theta
-    θ = similar(ψ)
-    ∂ˣθ = similar(ψ)
-    ∂ʸθ = similar(ψ)
-    κΔθ = similar(ψ)
-    θ̇ = similar(ψ)
-    s = similar(ψ)
-    θ̅ = similar(ψ)
-    k₁ = similar(ψ)
-    k₂ = similar(ψ)
-    k₃ = similar(ψ)
-    k₄ = similar(ψ)
-    θ̃ = similar(ψ)
-    uθ = similar(ψ)
-    vθ = similar(ψ)
-    ∂ˣuθ = similar(ψ)
-    ∂ʸvθ = similar(ψ)
-
-    # source
-    s = similar(ψ)
-    @. s = cos(kˣ[5] * x)
-
-    # phase
-    φ̇ = similar(A)
-
-    # operators
-    ∂x = im * kˣ
-    ∂y = im * kʸ
-    Δ = @. ∂x^2 + ∂y^2
-
-    # plan ffts
-    P = plan_fft!(ψ)
-    P⁻¹ = plan_ifft!(ψ)
-
-    ##
-    φ .= 0.0
-    event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
-    wait(event)
-    P * ψ # in place fft
-    # ∇ᵖψ
-    @. u = -1.0 * (∂y * ψ)
-    @. v = (∂x * ψ)
-    # go back to real space 
-    P⁻¹ * ψ
-    P⁻¹ * θ
-    P⁻¹ * u
-    P⁻¹ * v
-    u₀ = sqrt(real(mean(u .* u)))
-    v₀ = sqrt(real(mean(v .* v)))
-    A .*= amplitude_factor * sqrt(2) / u₀
-    # check it 
-    event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
-    wait(event)
-    P * ψ # in place fft
-    # ∇ᵖψ
-    @. u = -1.0 * (∂y * ψ)
-    @. v = (∂x * ψ)
-    # go back to real space 
-    P⁻¹ * ψ
-    P⁻¹ * θ
-    P⁻¹ * u
-    P⁻¹ * v
-    u₀ = sqrt(real(mean(u .* u))) # / sqrt(2)
-    v₀ = sqrt(real(mean(v .* v))) # / sqrt(2)
-
+    A .= default_A * amplitude_factor
     ##
     # κ = 2 / N  # roughly 1/N for this flow
     # κ = 2 / 2^8 # fixed diffusivity
     # κ = 2e-4
     Δx = x[2] - x[1]
-    κ = 0.01 # * (2^7 / N)^2# amplitude_factor * 2 * Δx^2
+    κ = 5e-3 # * (2^7 / N)^2# amplitude_factor * 2 * Δx^2
     cfl = 0.1
     Δx = (x[2] - x[1])
-    advective_Δt = cfl * Δx / amplitude_factor
+    advective_Δt = cfl * Δx / amplitude_factor * 0.5
     diffusive_Δt = cfl * Δx^2 / κ
     Δt = minimum([advective_Δt, diffusive_Δt])
 
@@ -196,12 +90,6 @@ for λ ∈ ProgressBar([0.01, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0])
 
         t[1] += Δt
         # save output
-        if save_fields
-            if i % div(iend, 10) == 0
-                push!(ψ_save, Array(real.(ψ)))
-                push!(θ_save, Array(real.(θ)))
-            end
-        end
 
         if t[1] >= tstart
             θ̅ .+= Δt * θ
@@ -217,16 +105,16 @@ for λ ∈ ProgressBar([0.01, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0])
     # factor of 2 comes from 4π domain
     tmp = Array(real.(fft(mean(θ̅, dims=2)[:])))
     kxa = Array(kˣ)[:]
-    effective_diffusivities = ((N ./ tmp) / 2 .- λ) ./ (kxa .^ 2) .- κ
+    effective_diffusivities = ((N ./ tmp) .- λ) ./ (kxa .^ 2) .- κ
     effective_diffusivities = effective_diffusivities[index_choices]
 
 
     fid["effective_diffusivities"][string(di)] = effective_diffusivities
     fid["amplitude_factor"][string(di)] = amplitude_factor
+    fid["phase_speed"][string(di)] = phase_speed
     close(fid)
 
 end
-
 
 #=
 fig = Figure()

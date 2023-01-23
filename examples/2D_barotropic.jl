@@ -65,7 +65,7 @@ fc=famp*filtr.*exp(i*th);fc(1,1)=0;
 =#
 
 # DEFINE TIME END 
-tend = 2000
+tend = 1000
 
 # now define the random field 
 φ = arraytype(zeros(N, N))
@@ -336,6 +336,7 @@ for i in eachindex(θ_t)
     tmp_v[:, :, i] .= v_t[i]
     tmp_ζ[:, :, i] .= ζ_t[i]
 end
+#=
 last_index = length(θ_t)
 plot_index = 400
 automean = [mean(tmp_u[1:8:end, 1:8:end, i:last_index] .* tmp_u[1:8:end, 1:8:end, 1:last_index-i+1]) for i in 1:2:plot_index]
@@ -346,20 +347,21 @@ automean2 = Float64[]
 for j in 0:2:plot_index-1
     push!(automean2, mean([mean(tmp_θ[1:8:end, 1:8:end, i+j] .* tmp_u[1:8:end, 1:8:end, i+j]) for i in start_indexlist]))
 end
-
+=#
 e_time = [0.5 * mean(tmp_u[:, :, i] .^2 + tmp_v[:, :, i] .^2 ) for i in 1:length(θ_t)]
 
+#=
 println("The eulerian diffusivity is ", sum(automean .* Δt))
 println("The lagrangian diffusivity is ", sum(automean2 .* Δt))
 println("The molecular_diffusivity is ", κ)
-
-
+=#
+#=
 fig = Figure()
 ax = Axis(fig[1, 1])
 scatter!(ax, automean)
 scatter!(ax, automean2)
 display(fig)
-
+=#
 #=
 fig = Figure() 
 ax = Axis(fig[1,1])

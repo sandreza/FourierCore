@@ -17,8 +17,23 @@ using CUDAKernels
 end
 
 
+@kernel function bumpy_kernel3!(field, @Const(A), @Const(𝓀ˣ), @Const(𝓀ʸ), @Const(x), @Const(y), @Const(φ), Nx, Ny)
+    i, j = @index(Global, NTuple)
+
+    tmp_sum = zero(eltype(field)) # create temporary array
+    xx = x[i]
+    yy = y[j]
+    
+    tmp_sum += A[1, 1] * cos(xx - φ[1, 1]) * cos(yy - φ[1, 2])
+
+    field[i, j] = tmp_sum
+end
+
+
+
 function stream_function!(field, A, 𝓀ˣ, 𝓀ʸ, x, y, φ; comp_stream=Event(CUDADevice()))
-    kernel! = stirring_kernel!(CUDADevice(), 256)
+    # kernel! = stirring_kernel!(CUDADevice(), 256)
+    kernel! = bumpy_kernel3!(CUDADevice(), 256)
     Nx = length(𝓀ˣ)
     Ny = length(𝓀ʸ)
     event = kernel!(field, A, 𝓀ˣ, 𝓀ʸ, x, y, φ, Nx, Ny, ndrange=size(field), dependencies=(comp_stream,))

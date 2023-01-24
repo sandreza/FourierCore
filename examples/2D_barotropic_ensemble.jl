@@ -1,28 +1,25 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
-using FFTW, LinearAlgebra, BenchmarkTools, Random, HDF5, ProgressBars
-using GLMakie
-using Statistics
-
-# NOTE ALIASING BUG FIXED ∂x[N/2] = 0
+using FFTW, LinearAlgebra, BenchmarkTools, Random, HDF5, ProgressBars, Statistics
 
 rng = MersenneTwister(12345)
-# Random.seed!(123456789)
 Random.seed!(12)
 
-# jld_name = "high_order_timestep_spatial_tracer_"
-# jld_name = "blocky"
-# include("transform.jl")
-include("random_phase_kernel.jl")
-# using GLMakie
+tend = 200.0
+tstart = 100
+phase_speed = sqrt(1.0) # 1.0
+
 
 using CUDA
 arraytype = CuArray
-Ω = S¹(4π)^2
+Ω = S¹(4π)^2 × S¹(1)
 N = 2^7
-grid = FourierGrid(N, Ω, arraytype=arraytype)
+N_ens = 128
+Ns = (N, N, N_ens)
+grid = FourierGrid(Ns, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
-forcing_amplitude = 400.0 *  (N / 2^7)^2 # due to FFT nonsense
+forcing_amplitude = 400.0 * (N / 2^7)^2 # due to FFT nonsense
 
+# build filter 
 x = nodes[1]
 y = nodes[2]
 kˣ = wavenumbers[1]
@@ -38,37 +35,8 @@ waver[1, 1] = 0.0
 waver[:, floor(Int, N / 2)+1] .= 0.0
 waver[floor(Int, N / 2)+1, :] .= 0.0
 
-#=
-cphi = π / 2
-wvx = @. sqrt((kˣ)^2 + (kʸ)^2) * 4π / 2^7 # cphi = π/2 and  (4π/N)
-waver = @. exp(-18 * (wvx - cphi)^7) * (wvx > cphi) + (wvx <= cphi)
-waver[1, 1] = 0.0
-waver[:, floor(Int, N / 2)+1] .= 0.0
-waver[floor(Int, N / 2)+1, :] .= 0.0
-=#
-
-ϕ = arraytype(zeros(N, N))
-rand!(rng, ϕ)
-ϕ .*= 2π
-tmpA = Array(real.(ifft(forcing_amplitude .* waver .* exp.(im .* ϕ))))
-# heatmap(tmpA)
-println("forcing extrema ", extrema(tmpA))
-# tmp = forcing_amplitude * real.(ifft(waver .* fft(exp.(im .* ϕ))))
-
-#=
-
-filtr=exp(-18*(wvx-cphi).^7).*(wvx>cphi)+(wvx<=cphi);
-
-K=sqrt(wv2);
-th=rand(size(k))*2*pi;
-fc=famp*filtr.*exp(i*th);fc(1,1)=0;
-=#
-
-# DEFINE TIME END 
-tend = 1000
-
-# now define the random field 
-φ = arraytype(zeros(N, N))
+# construct fields 
+φ = arraytype(zeros(Ns...))
 rand!(rng, φ)
 φ *= 2π
 
@@ -77,7 +45,7 @@ field = arraytype(zeros(N, N))
 ##
 # Fields 
 # velocity
-ψ = arraytype(zeros(ComplexF64, N, N))
+ψ = arraytype(zeros(ComplexF64, Ns...))
 u = similar(ψ)
 v = similar(ψ)
 
@@ -124,12 +92,12 @@ sζ = similar(ψ)
 Δ = @. ∂x^2 + ∂y^2
 
 # plan ffts
-P = plan_fft!(ψ)
-P⁻¹ = plan_ifft!(ψ)
+P = plan_fft!(ψ, (1, 2))
+P⁻¹ = plan_ifft!(ψ, (1, 2))
 
-##
+# time stepping
 Δx = x[2] - x[1]
-Δt = 1/N # 1 / N # 2^(-10)# 2 / N # Δx / (2π) * 1.0
+Δt = 1 / N # 1 / N # 2^(-10)# 2 / N # Δx / (2π) * 1.0
 κ = 1e-3 # 1.0 * Δx^2
 ν = sqrt(1e-6) # 0.5 * Δx^2
 ν_h = sqrt(1e-3) # 0.001
@@ -144,56 +112,34 @@ bools = (!).(isnan.(Δ⁻¹))
 
 𝒟ν = @. -(-ν_h * Δ⁻¹)^(hypoviscocity_power) - (-ν * Δ)^(dissipation_power) - r # - 1e-1 * (κ * Δ)^2 + 1e-3 * (κ * Δ)^3 - 1e-5 * (κ * Δ)^4
 𝒟κ = @. κ * Δ # - 1e-1 * (κ * Δ)^2 + 1e-3 * (κ * Δ)^3 - 1e-5 * (κ * Δ)^4
-# can modify Δ⁻¹ here 
 
-# take the initial condition as negative of the source
-tic = Base.time()
-
-# save some snapshots
-ψ_save = typeof(real.(Array(ψ)))[]
-θ_save = typeof(real.(Array(ψ)))[]
-
-θ = view(S, :, :, 1)
-ζ = view(S, :, :, 2)
+##
+θ = view(S, :, :, :, 1)
+ζ = view(S, :, :, :, 2)
 @. θ = 0.0 * sin(3 * x) * sin(3 * y) + -0.1 + 0im
 @. ζ = sin(3 * x) * sin(3 * y)
-
-t = [0.0]
-
-phase_speed = sqrt(1.0) # 1.0
-
-iend = ceil(Int, tend / Δt)
 
 operators = (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x, ∂y)
 auxiliary = (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ)
 constants = (; forcing_amplitude=forcing_amplitude)# (; τ = 0.01, e = 0.01)
-
 parameters = (; auxiliary, operators, constants)
 
+##
 function rhs!(Ṡ, S, parameters)
-    θ̇ = view(Ṡ, :, :, 1)
-    ζ̇ = view(Ṡ, :, :, 2)
-    θ = view(S, :, :, 1)
-    ζ = view(S, :, :, 2)
-
+    θ̇ = view(Ṡ, :, :, :, 1)
+    ζ̇ = view(Ṡ, :, :, :, 2)
+    θ = view(S, :, :, :, 1)
+    ζ = view(S, :, :, :, 2)
 
     (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x, ∂y) = parameters.operators
     (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ) = parameters.auxiliary
     (; forcing_amplitude) = parameters.constants
 
-
-    # construct random phase forcing
-    # event = stream_function!(ψ, A, 𝓀ˣ, 𝓀ʸ, x, y, φ)
-    # wait(event)
-
     # construct source for vorticity 
     # @. sζ = ψ
     sζ .= waver .* forcing_amplitude .* exp.(im .* φ)
     P⁻¹ * sζ
-    # sζ .= waver .* sζ 
-    # P⁻¹ * sζ
 
-    # P * ψ
     P * θ # in place fft ζ
     P * ζ # in place fft
     # grab stream function from vorticity
@@ -242,9 +188,6 @@ function rhs!(Ṡ, S, parameters)
     P⁻¹ * ∂ˣuθ
     P⁻¹ * ∂ʸvθ
 
-    # construct source 
-    # @. sθ = v + e - 1 / τ * θ * (real(θ) > 0)
-
     # rhs
     @. ζ̇ = real((-u * ∂ˣζ - v * ∂ʸζ - ∂ˣuζ - ∂ʸvζ) * 0.5 + 𝒟ζ + sζ)
     @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 + 𝒟θ)
@@ -254,19 +197,12 @@ function rhs!(Ṡ, S, parameters)
     return nothing
 end
 
-include("interpolation.jl")
-filename = "higher_rez.hdf5"
-# rm(filename)
-# fid = h5open(filename, "w")
-# create_group(fid, "vorticity")
-# create_group(fid, "moisture")
-saveindex = 0
-
-start_index = floor(Int, iend / 100)
-θ_t = [] # zeros(N, N, iend-start_index)
-u_t = [] # zeros(N, N, iend-start_index)
-v_t = [] # zeros(N, N, iend-start_index)
-ζ_t = []
+##
+iend = ceil(Int, tend / Δt)
+start_index = floor(Int, tstart / Δt)
+eulerian_list = Float64[]
+lagrangian_list = Float64[]
+eke_list = Float64[]
 
 iter = ProgressBar(1:iend)
 for i = iter
@@ -294,96 +230,28 @@ for i = iter
     @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
     t[1] += Δt
-    # save output
-    #=
-    if t[1] > 40
-        if i % div(iend, 400) == 0
-            global saveindex += 1
-            fid["vorticity"][string(saveindex)] = quick_interpolation(ζ)
-            fid["moisture"][string(saveindex)] = quick_interpolation(θ)
-        end
-    end
-    =#
+
     if i == start_index
         θ .= u
+        sθ .= u
     end
     if (i > start_index) && (i % 10 == 0)
-        # θ_t[:, :, i - start_index] .= real.(Array(θ))
-        # u_t[:, :, i - start_index] .= real.(Array(u))
-        # v_t[:, :, i - start_index] .= real.(Array(v))
         if i % 4000 == 0
             # decorrelates after 2000 timesteps
             θ .= u
         end
-        push!(θ_t, real.(Array(θ)))
-        push!(u_t, real.(Array(u)))
-        push!(v_t, real.(Array(v)))
-        push!(ζ_t, real.(Array(ζ)))
+        uu = real(mean(u .* sθ))
+        uθ = real(mean(u .* θ))
+
+        push!(eulerian_list, uu)
+        push!(lagrangian_list, uθ)
+        push!(eke_list, real(0.5 * mean(u .* u + v .* v)))
+
+        θ_min, θ_max = extrema(real.(θ))
+        ζ_min, ζ_max = extrema(real.(ζ))
+        set_multiline_postfix(iter, "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max")
     end
 
-    θ_min, θ_max = extrema(real.(θ))
-    ζ_min, ζ_max = extrema(real.(ζ))
-    set_multiline_postfix(iter, "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max")
 end
 
-tmp_θ = zeros(N, N, length(θ_t))
-tmp_u = zeros(N, N, length(u_t))
-tmp_v = zeros(N, N, length(v_t))
-tmp_ζ = zeros(N, N, length(ζ_t))
-for i in eachindex(θ_t)
-    tmp_θ[:, :, i] .= θ_t[i]
-    tmp_u[:, :, i] .= u_t[i]
-    tmp_v[:, :, i] .= v_t[i]
-    tmp_ζ[:, :, i] .= ζ_t[i]
-end
-#=
-last_index = length(θ_t)
-plot_index = 400
-automean = [mean(tmp_u[1:8:end, 1:8:end, i:last_index] .* tmp_u[1:8:end, 1:8:end, 1:last_index-i+1]) for i in 1:2:plot_index]
 
-tmpbool = abs.(tmp_θ[1, 1, :] - tmp_u[1, 1, :]) .== 0.0
-start_indexlist = eachindex(tmpbool)[tmpbool][2:end-1] # remove edge cases
-automean2 = Float64[]
-for j in 0:2:plot_index-1
-    push!(automean2, mean([mean(tmp_θ[1:8:end, 1:8:end, i+j] .* tmp_u[1:8:end, 1:8:end, i+j]) for i in start_indexlist]))
-end
-=#
-e_time = [0.5 * mean(tmp_u[:, :, i] .^2 + tmp_v[:, :, i] .^2 ) for i in 1:length(θ_t)]
-
-#=
-println("The eulerian diffusivity is ", sum(automean .* Δt))
-println("The lagrangian diffusivity is ", sum(automean2 .* Δt))
-println("The molecular_diffusivity is ", κ)
-=#
-#=
-fig = Figure()
-ax = Axis(fig[1, 1])
-scatter!(ax, automean)
-scatter!(ax, automean2)
-display(fig)
-=#
-#=
-fig = Figure() 
-ax = Axis(fig[1,1])
-A_ζ = Array(real.(ζ))
-tmp = minimum(abs.(extrema(A_ζ)))
-heatmap!(ax, A_ζ,  colormap=:balance, colorrange=(-tmp, tmp))
-display(fig)
-
-##
-
-
-=#
-
-fig2 = Figure()
-
-ax = Axis(fig2[1, 1])
-A_ζ = Array(real.(ζ))
-tmp = quantile(abs.(extrema(A_ζ))[:], 0.1)
-
-sl_x = Slider(fig2[2, 1], range=1:length(θ_t), startvalue=1)
-o_index = sl_x.value
-
-field = @lift ζ_t[$o_index]
-heatmap!(ax, field, colormap=:balance, colorrange=(-tmp, tmp), interpolate = false)
-display(fig2)

@@ -18,6 +18,7 @@ Ns = (N, N, N_ens)
 ν = sqrt(1e-5) # 0.5 * Δx^2
 ν_h = sqrt(1e-3) # 0.001
 f_amp = 400
+ϵ = 1.0
 
 function load_psi!(ψ)
     filename = "initial_streamfunction.hdf5"
@@ -135,7 +136,7 @@ bools = (!).(isnan.(Δ⁻¹))
 
 operators = (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x, ∂y)
 auxiliary = (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ)
-constants = (; forcing_amplitude=forcing_amplitude)# (; τ = 0.01, e = 0.01)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ = ϵ)# (; τ = 0.01, e = 0.01)
 parameters = (; auxiliary, operators, constants)
 
 # initialize
@@ -154,7 +155,7 @@ function rhs!(Ṡ, S, parameters)
 
     (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x, ∂y) = parameters.operators
     (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ) = parameters.auxiliary
-    (; forcing_amplitude) = parameters.constants
+    (; forcing_amplitude, ϵ) = parameters.constants
 
     # construct source for vorticity 
     # @. sζ = ψ
@@ -211,13 +212,12 @@ function rhs!(Ṡ, S, parameters)
 
     # rhs
     @. ζ̇ = real((-u * ∂ˣζ - v * ∂ʸζ - ∂ˣuζ - ∂ʸvζ) * 0.5 + 𝒟ζ + sζ)
-    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 + 𝒟θ + sθ)
+    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 * ϵ + 𝒟θ + sθ)
     @. S = real(S)
     @. Ṡ = real(Ṡ)
 
     return nothing
 end
-
 
 function step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, parameters)
     rhs!(k₁, S, parameters)

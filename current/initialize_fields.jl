@@ -310,12 +310,18 @@ if initialize
     ax = Axis(fig2[1, 1])
     A_ζ = Array(real.(ζ))
     tmp = quantile(abs.(extrema(A_ζ))[:], 0.1)
+    ax2 = Axis(fig2[1, 2])
+    A_θ = Array(real.(θ))
+    tmp2 = quantile(abs.(extrema(A_θ))[:], 0.1)
 
-    sl_x = Slider(fig2[2, 1], range=1:N_ens, startvalue=1)
+    sl_x = Slider(fig2[2, 1:2], range=1:N_ens, startvalue=1)
     o_index = sl_x.value
 
     field = @lift Array(ζ[:, :, $o_index])
     heatmap!(ax, field, colormap=:balance, colorrange=(-tmp, tmp), interpolate=false)
+
+    field2 = @lift Array(θ[:, :, $o_index])
+    heatmap!(ax2, field2, colormap=:balance, colorrange=(-tmp2, tmp2), interpolate=false)
     display(fig2)
 end
 =#

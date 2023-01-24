@@ -5,19 +5,19 @@ arraytype = CuArray
 
 rng = MersenneTwister(12345)
 Random.seed!(12)
-initialize = false
-tend = 200.0
+initialize = true
+tend = 500.0
 tstart = 1
-phase_speed = sqrt(1.0) # 1.0
+phase_speed = 1.0
 
 N = 2^7
-N_ens = 2^7
+N_ens = 2^7 # 2^7
 Ns = (N, N, N_ens)
 
 κ = 1e-3 # 1.0 * Δx^2
-ν = sqrt(1e-5) # 0.5 * Δx^2
+ν = sqrt(1e-5/2) # 0.5 * Δx^2
 ν_h = sqrt(1e-3) # 0.001
-f_amp = 400
+f_amp = 300
 ϵ = 1.0
 
 function load_psi!(ψ)
@@ -115,7 +115,7 @@ P⁻¹ = plan_ifft!(ψ, (1, 2))
 
 # time stepping
 Δx = x[2] - x[1]
-Δt = 1 / N # 1 / N # 2^(-10)# 2 / N # Δx / (2π) * 1.0
+Δt = 1/N # 1 / N # 1 / N # 2^(-10)# 2 / N # Δx / (2π) * 1.0
 r = 0
 hypoviscocity_power = 2
 dissipation_power = 2
@@ -144,6 +144,7 @@ if initialize != true
     load_psi!(ψ)
     ζ .= ifft(Δ .* fft(ψ))
 end
+
 sθ .= 0.0
 
 ##
@@ -223,13 +224,13 @@ function step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, parameters)
     rhs!(k₁, S, parameters)
     @. S̃ = S + Δt * k₁ * 0.5
     randn!(rng, φ̇)
-    @. φ += phase_speed * sqrt(Δt / 2) * φ̇ # now at t = 0.5
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 0.5, note the factor of two has been accounted for
     rhs!(k₂, S̃, parameters)
     @. S̃ = S + Δt * k₂ * 0.5
     rhs!(k₃, S̃, parameters)
     @. S̃ = S + Δt * k₃
     randn!(rng, φ̇)
-    @. φ += phase_speed * sqrt(Δt / 2) * φ̇ # now at t = 1.0
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 1.0, note the factor of two has been accounted for
     rhs!(k₄, S̃, parameters)
     @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
     return nothing
@@ -279,10 +280,10 @@ if initialize
                 θ .= u
             end
             uu = real(mean(u .* u₀))
-            uθ = real(mean(u .* θ))
+            tmpuθ = real(mean(u .* θ))
 
             push!(eulerian_list, uu)
-            push!(lagrangian_list, uθ)
+            push!(lagrangian_list, tmpuθ)
             push!(eke_list, real(0.5 * mean(u .* u + v .* v)))
 
             θ_min, θ_max = extrema(real.(θ))
@@ -294,6 +295,7 @@ if initialize
     end
 end
 
+#=
 if initialize
     filename = "initial_streamfunction.hdf5"
     fid = h5open(filename, "w")
@@ -301,7 +303,7 @@ if initialize
     fid["psi"] = Array(ψ)
     close(fid)
 end
-
+=#
 #=
 if initialize
     using GLMakie
@@ -317,10 +319,10 @@ if initialize
     sl_x = Slider(fig2[2, 1:2], range=1:N_ens, startvalue=1)
     o_index = sl_x.value
 
-    field = @lift Array(ζ[:, :, $o_index])
+    field = @lift Array(real.(ζ[:, :, $o_index]))
     heatmap!(ax, field, colormap=:balance, colorrange=(-tmp, tmp), interpolate=false)
 
-    field2 = @lift Array(θ[:, :, $o_index])
+    field2 = @lift Array(real.(θ[:, :, $o_index]))
     heatmap!(ax2, field2, colormap=:balance, colorrange=(-tmp2, tmp2), interpolate=false)
     display(fig2)
 end

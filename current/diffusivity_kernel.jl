@@ -8,14 +8,20 @@ Random.seed!(123456789)
 # initialize fields: variables and domain defined here
 include("initialize_fields.jl")
 
-filename = "quick_effective_diffusivities" * ".hdf5"
-fid = h5open(filename, "w")
+# filename = "quick_effective_diffusivities" * ".hdf5"
+# fid = h5open(filename, "w")
 
 ϵ = 1.0
-tstart = 100.0
-tend = 300.0
+tstart = 250.0
+tend = 500.0
 
-for (ii, ϵ) ∈ ProgressBar(enumerate([0.01, 0.1, 1.0]))
+# maxind = minimum([40, floor(Int, N[1] / 3)])
+maxind = 2
+index_choices = 2:maxind
+
+
+# for (ii, ϵ) ∈ ProgressBar(enumerate([0.01, 0.1, 1.0]))
+
     constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ)
     parameters = (; auxiliary, operators, constants)
 
@@ -27,8 +33,7 @@ for (ii, ϵ) ∈ ProgressBar(enumerate([0.01, 0.1, 1.0]))
     λ = 0
     sθ .= 0.0
     θ .= 0
-    maxind = minimum([40, floor(Int, N[1] / 3)])
-    index_choices = 2:maxind
+
     for index_choice in ProgressBar(index_choices)
         kᶠ = kˣ[index_choice]
         @. θ += cos(kᶠ * x) / (kᶠ)^2 / κ # scaling so that source is order 1
@@ -85,12 +90,12 @@ for (ii, ϵ) ∈ ProgressBar(enumerate([0.01, 0.1, 1.0]))
     display(fig)
     =#
 
-
+#=
     fid["effective_diffusivities "*string(ii)] = effective_diffusivities
     fid["amplitude "*string(ii)] = ϵ
     fid["kernel "*string(ii)] = kernel
-
-end
+=#
+# end
 
 
 close(fid)

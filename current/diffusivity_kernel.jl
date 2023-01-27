@@ -5,18 +5,22 @@ using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 
+save_diffusivities = false
+
 # initialize fields: variables and domain defined here
 include("initialize_fields.jl")
 
-# filename = "quick_effective_diffusivities" * ".hdf5"
-# fid = h5open(filename, "w")
+if save_diffusivities
+    filename = "effective_diffusivities" * ".hdf5"
+    fid = h5open(filename, "w")
+end
 
 ϵ = 1.0
 tstart = 250.0
-tend = 500.0
+tend = 250.0
 
-# maxind = minimum([40, floor(Int, N[1] / 3)])
-maxind = 2
+maxind = minimum([40, floor(Int, N[1] / 2)])
+# maxind = 2
 index_choices = 2:maxind
 
 
@@ -54,9 +58,10 @@ index_choices = 2:maxind
     load_psi!(ψ)
     ζ .= ifft(Δ .* fft(ψ))
 
-    θ̄ = arraytype(zeros(ComplexF64, N, N))
+    θ̄ = arraytype(zeros(ComplexF64, N, N, N_ens))
 
     iter = ProgressBar(1:iend)
+    eke_list = Float64[]
     for i = iter
         step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, parameters)
         if i % 10 == 0
@@ -65,7 +70,10 @@ index_choices = 2:maxind
             set_multiline_postfix(iter, "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max")
         end
         if i > start_index
-            θ̄ .+= Δt .* mean(θ, dims=3)[:, :]
+            θ̄ .+= Δt .* θ
+        end
+        if i%10 ==0
+            push!(eke_list, real(mean(u .* u + v .* v)))
         end
     end
 
@@ -73,10 +81,20 @@ index_choices = 2:maxind
     θ̄_A = Array(real.(θ̄))
 
 
-    tmp = Array(real.(fft(mean(θ̄, dims=2)[:])))
+    tmp = Array(real.(fft(mean(θ̄, dims=(2, 3))[:]))) # tmp = real.(fft(Array(mean(θ[:,:,1:10], dims = (2,3)))[:]))
     kxa = Array(kˣ)[:]
     effective_diffusivities = (((N[1] / 2) ./ tmp) .- λ) ./ (kxa .^ 2) .- κ
     effective_diffusivities = effective_diffusivities[index_choices]
+    #=
+    list1 = Float64[]
+    for i in 1:128
+        tmp = Array(real.(fft(mean(θ̄[:,:,i], dims=2)[:]))) # tmp = real.(fft(Array(mean(θ[:,:,1:10], dims = (2,3)))[:]))
+        kxa = Array(kˣ)[:]
+        eff = (((N[1] / 2) ./ tmp) .- λ) ./ (kxa .^ 2) .- κ
+        println(eff[2])
+        push!(list1, eff[2])
+    end
+    =#
 
     # estimate kernel on grid
     kernel = real.(fft([0.0, effective_diffusivities..., zeros(65)..., reverse(effective_diffusivities)...]))
@@ -89,13 +107,22 @@ index_choices = 2:maxind
     scatter!(ax, kernel)
     display(fig)
     =#
+    #=
+    fid = h5open("250_diff_list.hdf5", "w")
+    fid["effective_diffusivities"] = effective_diffusivities
+    fid["eff per member"] = list1 
+    close(fid)
+    =#
 
-#=
-    fid["effective_diffusivities "*string(ii)] = effective_diffusivities
-    fid["amplitude "*string(ii)] = ϵ
-    fid["kernel "*string(ii)] = kernel
-=#
+    if save_diffusivities
+        fid["effective_diffusivities "*string(ii)] = effective_diffusivities
+        fid["amplitude "*string(ii)] = ϵ
+        fid["kernel "*string(ii)] = kernel
+    end
+
 # end
 
 
-close(fid)
+if save_diffusivities
+    close(fid)
+end

@@ -3,37 +3,25 @@ using FFTW, LinearAlgebra, BenchmarkTools, Random, HDF5, ProgressBars, Statistic
 using CUDA
 arraytype = CuArray
 
+include("timestepping.jl")
+
 rng = MersenneTwister(12345)
 Random.seed!(12)
-initialize = true
-tend = 500.0
-tstart = 1
-phase_speed = 1.0
 
+phase_speed = 1.0
 N = 2^7
 N_ens = 2^7 # 2^7
 Ns = (N, N, N_ens)
-
-κ = 1e-3 # 1.0 * Δx^2
-ν = sqrt(1e-5/2) # 0.5 * Δx^2
-ν_h = sqrt(1e-3) # 0.001
+κ = 1e-3 
+ν = sqrt(1e-5 / 2) # raised to the hypoviscocity_power
+ν_h = sqrt(1e-3) # raised to the dissipation_power
 f_amp = 300
+forcing_amplitude = f_amp * (N / 2^7)^2 # due to FFT nonsense
 ϵ = 1.0
-
-function load_psi!(ψ)
-    filename = "initial_streamfunction.hdf5"
-    fid = h5open(filename, "r")
-    ψ .= arraytype(read(fid["psi"]))
-    close(fid)
-    return nothing
-end
-
-
 
 Ω = S¹(4π)^2 × S¹(1)
 grid = FourierGrid(Ns, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
-forcing_amplitude = f_amp * (N / 2^7)^2 # due to FFT nonsense
 
 # build filter 
 x = nodes[1]
@@ -115,8 +103,8 @@ P⁻¹ = plan_ifft!(ψ, (1, 2))
 
 # time stepping
 Δx = x[2] - x[1]
-Δt = 1/N # 1 / N # 1 / N # 2^(-10)# 2 / N # Δx / (2π) * 1.0
-r = 0
+Δt = 1 / N
+
 hypoviscocity_power = 2
 dissipation_power = 2
 # Dissipation 
@@ -125,8 +113,8 @@ dissipation_power = 2
 bools = (!).(isnan.(Δ⁻¹))
 Δ⁻¹ .*= bools # hack in the fact that false * NaN = 0
 
-𝒟ν = @. -(-ν_h * Δ⁻¹)^(hypoviscocity_power) - (-ν * Δ)^(dissipation_power) - r # - 1e-1 * (κ * Δ)^2 + 1e-3 * (κ * Δ)^3 - 1e-5 * (κ * Δ)^4
-𝒟κ = @. κ * Δ # - 1e-1 * (κ * Δ)^2 + 1e-3 * (κ * Δ)^3 - 1e-5 * (κ * Δ)^4
+𝒟ν = @. -(-ν_h * Δ⁻¹)^(hypoviscocity_power) - (-ν * Δ)^(dissipation_power) - r
+𝒟κ = @. κ * Δ
 
 ##
 θ = view(S, :, :, :, 1)
@@ -136,164 +124,16 @@ bools = (!).(isnan.(Δ⁻¹))
 
 operators = (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x, ∂y)
 auxiliary = (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ)
-constants = (; forcing_amplitude=forcing_amplitude, ϵ = ϵ)# (; τ = 0.01, e = 0.01)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ)
 parameters = (; auxiliary, operators, constants)
 
-# initialize
-if initialize != true
-    load_psi!(ψ)
-    ζ .= ifft(Δ .* fft(ψ))
-end
-
-sθ .= 0.0
-
-##
-function rhs!(Ṡ, S, parameters)
-    θ̇ = view(Ṡ, :, :, :, 1)
-    ζ̇ = view(Ṡ, :, :, :, 2)
-    θ = view(S, :, :, :, 1)
-    ζ = view(S, :, :, :, 2)
-
-    (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x, ∂y) = parameters.operators
-    (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ) = parameters.auxiliary
-    (; forcing_amplitude, ϵ) = parameters.constants
-
-    # construct source for vorticity 
-    # @. sζ = ψ
-    sζ .= waver .* forcing_amplitude .* exp.(im .* φ)
-    P⁻¹ * sζ
-
-    P * θ # in place fft ζ
-    P * ζ # in place fft
-    # grab stream function from vorticity
-    @. ψ = Δ⁻¹ * ζ
-    # ∇ᵖψ
-    @. u = (∂y * ψ)
-    @. v = -1.0 * (∂x * ψ)
-    # ∇ζ
-    @. ∂ˣθ = ∂x * θ
-    @. ∂ʸθ = ∂y * θ
-    @. ∂ˣζ = ∂x * ζ
-    @. ∂ʸζ = ∂y * ζ
-    # Dissipation
-    @. 𝒟ζ = 𝒟ν * ζ
-    @. 𝒟θ = 𝒟κ * θ
-    # go back to real space 
-    P⁻¹ * u
-    P⁻¹ * v
-    P⁻¹ * ζ
-    P⁻¹ * ∂ˣζ
-    P⁻¹ * ∂ʸζ
-    P⁻¹ * 𝒟ζ
-    P⁻¹ * θ
-    P⁻¹ * ∂ˣθ
-    P⁻¹ * ∂ʸθ
-    P⁻¹ * 𝒟θ
-    # construct conservative form 
-    @. uζ = u * ζ
-    @. vζ = v * ζ
-    @. uθ = u * θ
-    @. vθ = v * θ
-    # in place fft 
-    P * uζ
-    P * vζ
-    P * uθ
-    P * vθ
-    # ∇⋅(u⃗ζ)
-    @. ∂ˣuζ = ∂x * uζ
-    @. ∂ʸvζ = ∂y * vζ
-    # ∇⋅(u⃗θ)
-    @. ∂ˣuθ = ∂x * uθ
-    @. ∂ʸvθ = ∂y * vθ
-    # in place ifft 
-    P⁻¹ * ∂ˣuζ
-    P⁻¹ * ∂ʸvζ
-    P⁻¹ * ∂ˣuθ
-    P⁻¹ * ∂ʸvθ
-
-    # rhs
-    @. ζ̇ = real((-u * ∂ˣζ - v * ∂ʸζ - ∂ˣuζ - ∂ʸvζ) * 0.5 + 𝒟ζ + sζ)
-    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 * ϵ + 𝒟θ + sθ)
-    @. S = real(S)
-    @. Ṡ = real(Ṡ)
-
+function load_psi!(ψ; filename="initial_streamfunction.hdf5")
+    fid = h5open(filename, "r")
+    ψ .= arraytype(read(fid["psi"]))
+    close(fid)
     return nothing
 end
 
-function step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, parameters)
-    rhs!(k₁, S, parameters)
-    @. S̃ = S + Δt * k₁ * 0.5
-    randn!(rng, φ̇)
-    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 0.5, note the factor of two has been accounted for
-    rhs!(k₂, S̃, parameters)
-    @. S̃ = S + Δt * k₂ * 0.5
-    rhs!(k₃, S̃, parameters)
-    @. S̃ = S + Δt * k₃
-    randn!(rng, φ̇)
-    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 1.0, note the factor of two has been accounted for
-    rhs!(k₄, S̃, parameters)
-    @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
-    return nothing
-end
-##
-iend = ceil(Int, tend / Δt)
-start_index = floor(Int, tstart / Δt)
-eulerian_list = Float64[]
-lagrangian_list = Float64[]
-eke_list = Float64[]
-
-iter = ProgressBar(1:iend)
-if initialize
-    for i = iter
-        # fourth order runge-kutta on deterministic part
-        # keep ψ frozen is the correct way to do it here
-
-        # the below assumes that φ is just a function of time
-        rhs!(k₁, S, parameters)
-        @. S̃ = S + Δt * k₁ * 0.5
-
-        # φ_rhs_normal!(φ̇, φ, rng)
-        randn!(rng, φ̇)
-        @. φ += phase_speed * sqrt(Δt / 2) * φ̇ # now at t = 0.5
-
-        rhs!(k₂, S̃, parameters)
-        @. S̃ = S + Δt * k₂ * 0.5
-        rhs!(k₃, S̃, parameters)
-        @. S̃ = S + Δt * k₃
-
-        # φ_rhs_normal!(φ̇, φ, rng)
-        randn!(rng, φ̇)
-        @. φ += phase_speed * sqrt(Δt / 2) * φ̇ # now at t = 1.0
-
-        rhs!(k₄, S̃, parameters)
-        @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
-
-        t[1] += Δt
-
-        if i == start_index
-            θ .= u
-            u₀ .= u
-        end
-        if (i > start_index) && (i % 10 == 0)
-            if i % 4000 == 0
-                # decorrelates after 2000 timesteps
-                θ .= u
-            end
-            uu = real(mean(u .* u₀))
-            tmpuθ = real(mean(u .* θ))
-
-            push!(eulerian_list, uu)
-            push!(lagrangian_list, tmpuθ)
-            push!(eke_list, real(0.5 * mean(u .* u + v .* v)))
-
-            θ_min, θ_max = extrema(real.(θ))
-            ζ_min, ζ_max = extrema(real.(ζ))
-            set_multiline_postfix(iter, "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max")
-        end
-
-
-    end
-end
 
 #=
 if initialize

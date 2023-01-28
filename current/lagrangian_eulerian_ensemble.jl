@@ -1,7 +1,7 @@
 sθ .= 0.0
 
-tstart = 1000.0
-tend = 2000.0
+tstart = 250.0
+tend = 500.0
 
 iend = ceil(Int, tend / Δt)
 start_index = floor(Int, tstart / Δt)
@@ -11,7 +11,9 @@ ke_list = Float64[]
 tlist = Float64[]
 
 mod_index = 10 # save every other mod index
-decorrelation_index  = 4000 # how many steps till we reinitialize
+decorrelation_index  = 4000 # how many steps till we reinitialize tracer
+decorrelation_index2 = 12000 # how many steps till we reinitialize u₀
+
 t = [0.0]
 iter = ProgressBar(1:iend)
 for i = iter
@@ -27,6 +29,9 @@ for i = iter
         if i % decorrelation_index == 0
             # decorrelates after 4000 timesteps
             θ .= u
+        end
+        if i % decorrelation_index2 == 0
+            u₀ .= u
         end
         uu = real(mean(u .* u₀))
         tmpuθ = real(mean(u .* θ))

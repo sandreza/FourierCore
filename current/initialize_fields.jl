@@ -55,10 +55,11 @@ v = similar(ψ)
 u₀ = similar(ψ)
 v₀ = similar(ψ)
 
-# auxiliary fields
+# prognostic variables
 S = arraytype(zeros(ComplexF64, size(ψ)..., 2))
 Ṡ = arraytype(zeros(ComplexF64, size(ψ)..., 2))
 
+# auxiliary fields
 uθ = similar(ψ)
 vθ = similar(ψ)
 uζ = similar(ψ)
@@ -113,7 +114,7 @@ dissipation_power = 2
 bools = (!).(isnan.(Δ⁻¹))
 Δ⁻¹ .*= bools # hack in the fact that false * NaN = 0
 
-𝒟ν = @. -(-ν_h * Δ⁻¹)^(hypoviscocity_power) - (-ν * Δ)^(dissipation_power) - r
+𝒟ν = @. -(-ν_h * Δ⁻¹)^(hypoviscocity_power) - (-ν * Δ)^(dissipation_power) 
 𝒟κ = @. κ * Δ
 
 ##

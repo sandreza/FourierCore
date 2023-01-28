@@ -24,7 +24,7 @@ formatted_eulerian_list = [eulerian_list[si+(i-1)*skip:si+i*skip-1] for i in 1:e
 scatter(mean(formatted_lagrangian_list))
 scatter!(mean(formatted_eulerian_list))
 
-#=
+
 # = "/storage5/NonlocalPassiveTracers/Current/" * "proto_default_case.hdf5"
 directory = "/storage5/NonlocalPassiveTracers/Current/"
 filename = "proto_default_case.hdf5"
@@ -50,4 +50,3 @@ fid["times output"] = tlist
 fid["domain size x"] = Ω[1].b - Ω[1].a
 fid["domain size y"] = Ω[2].b - Ω[2].a
 close(fid)
-=#

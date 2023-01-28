@@ -5,9 +5,9 @@ using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 
-scaleit = 1
-tstart = 25.0 * scaleit
-tend = 50.0 * scaleit
+scaleit = 2^3
+tstart = 2^5 * scaleit
+tend = 2^6 * scaleit
 
 maxind = minimum([40, floor(Int, N[1] / 2)])
 # maxind = 2

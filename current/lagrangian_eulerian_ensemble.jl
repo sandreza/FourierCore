@@ -1,7 +1,8 @@
 sθ .= 0.0
 
-tstart = 250.0
-tend = 500.0
+scaleit = 2^3
+tstart = 2^5 * scaleit
+tend = 2^6 * scaleit
 
 iend = ceil(Int, tend / Δt)
 start_index = floor(Int, tstart / Δt)
@@ -11,8 +12,8 @@ ke_list = Float64[]
 tlist = Float64[]
 
 mod_index = 10 # save every other mod index
-decorrelation_index  = 4000 # how many steps till we reinitialize tracer
-decorrelation_index2 = 8000 # how many steps till we reinitialize u₀
+decorrelation_index = 2^12 # how many steps till we reinitialize tracer
+decorrelation_index2 = 2^13 # how many steps till we reinitialize u₀
 
 t .= 0.0
 iter = ProgressBar(1:iend)

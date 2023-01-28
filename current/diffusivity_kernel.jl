@@ -12,10 +12,14 @@ if save_diffusivities
     fid = h5open(filename, "w")
 end
 
+scaleit = 2^3
+tstart = 2^5 * scaleit
+tend = 2^6 * scaleit
+
 forcing_amplitude = 300
 ϵ = 0.0
 ω = 0
-constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω = ω)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
 parameters = (; auxiliary, operators, constants)
 
 
@@ -23,9 +27,6 @@ load_psi!(ψ)
 P * ψ;
 ζ .= Δ .* ψ
 P⁻¹ * ζ
-
-tstart = 250.0
-tend = 500.0
 
 maxind = minimum([40, floor(Int, N[1] / 2)])
 # maxind = 2
@@ -84,16 +85,6 @@ tmp = Array(real.(fft(mean(θ̄, dims=(2, 3))[:]))) # tmp = real.(fft(Array(mean
 kxa = Array(kˣ)[:]
 effective_diffusivities = (((N[1] / 2) ./ tmp) .- λ) ./ (kxa .^ 2) .- κ
 effective_diffusivities = effective_diffusivities[index_choices]
-#=
-list1 = Float64[]
-for i in 1:128
-    tmp = Array(real.(fft(mean(θ̄[:,:,i], dims=2)[:]))) # tmp = real.(fft(Array(mean(θ[:,:,1:10], dims = (2,3)))[:]))
-    kxa = Array(kˣ)[:]
-    eff = (((N[1] / 2) ./ tmp) .- λ) ./ (kxa .^ 2) .- κ
-    println(eff[2])
-    push!(list1, eff[2])
-end
-=#
 
 # estimate kernel on grid
 kernel = real.(fft([0.0, effective_diffusivities..., zeros(65)..., reverse(effective_diffusivities)...]))
@@ -125,3 +116,14 @@ end
 if save_diffusivities
     close(fid)
 end
+
+#=
+list1 = Float64[]
+for i in 1:128
+    tmp = Array(real.(fft(mean(θ̄[:,:,i], dims=2)[:]))) # tmp = real.(fft(Array(mean(θ[:,:,1:10], dims = (2,3)))[:]))
+    kxa = Array(kˣ)[:]
+    eff = (((N[1] / 2) ./ tmp) .- λ) ./ (kxa .^ 2) .- κ
+    println(eff[2])
+    push!(list1, eff[2])
+end
+=#

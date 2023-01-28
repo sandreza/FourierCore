@@ -12,19 +12,16 @@ tlist = Float64[]
 
 mod_index = 10 # save every other mod index
 decorrelation_index  = 4000 # how many steps till we reinitialize tracer
-decorrelation_index2 = 12000 # how many steps till we reinitialize u₀
+decorrelation_index2 = 4000 # how many steps till we reinitialize u₀
 
-t = [0.0]
+t .= 0.0
 iter = ProgressBar(1:iend)
 for i = iter
-    step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, parameters)
-    t[1] += Δt
-
+    step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
     if i == start_index
         θ .= u
         u₀ .= u
     end
-
     if (i > start_index) && (i % mod_index == 0)
         if i % decorrelation_index == 0
             # decorrelates after 4000 timesteps

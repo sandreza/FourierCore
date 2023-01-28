@@ -35,8 +35,9 @@ load_psi!(ψ)
 
 θ .= CuArray(θ_A)
 iter = ProgressBar(1:iend)
+t .= 0.0
 for i = iter
-    step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, parameters)
+    step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
     if i % 10 == 0
         θ_min, θ_max = extrema(real.(θ))
         ζ_min, ζ_max = extrema(real.(ζ))

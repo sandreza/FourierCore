@@ -26,6 +26,7 @@ scatter(mean(formatted_lagrangian_list))
 scatter!(mean(formatted_eulerian_list))
 
 #=
+# = "/storage5/NonlocalPassiveTracers/Current/" * "prototype.hdf5"
 directory = "/storage5/NonlocalPassiveTracers/Current/"
 fid = h5open(directory * "prototype2.hdf5", "w")
 fid["forcing amplitude"] = f_amp
@@ -42,8 +43,9 @@ fid["stream function"] = real.(Array(ifft(ψ)))
 fid["lagrangian decorrelation"] = mean(formatted_lagrangian_list)
 fid["lagrangian decorrelation unprocessesed"] = lagrangian_list 
 fid["eulerian decorrelation unprocessesed"] = eulerian_list
+fid["eulerian decorrelation"] = mean(formatted_eulerian_list)
 fid["kinetic energy evolution"] = ke_list
-fid["output times"] = tlist
+fid["times output"] = tlist
 fid["domain size x"] = Ω[1].b - Ω[1].a
 fid["domain size y"] = Ω[2].b - Ω[2].a
 close(fid)

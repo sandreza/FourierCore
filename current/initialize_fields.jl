@@ -17,7 +17,9 @@ Ns = (N, N, N_ens)
 ν_h = sqrt(1e-3) # raised to the dissipation_power
 f_amp = 300
 forcing_amplitude = f_amp * (N / 2^7)^2 # due to FFT nonsense
-ϵ = 1.0
+ϵ = 0.0 # large scale parameter, 0 means off, 1 means on
+ω = 0.0 # frequency, 0 means no time dependence
+t = [0.0]
 
 Ω = S¹(4π)^2 × S¹(1)
 grid = FourierGrid(Ns, Ω, arraytype=arraytype)
@@ -128,7 +130,7 @@ auxiliary = (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ
 constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ)
 parameters = (; auxiliary, operators, constants)
 
-function load_psi!(ψ; filename="initial_streamfunction.hdf5")
+function load_psi!(ψ; filename="/storage5/NonlocalPassiveTracers/Current/" * "prototype.hdf5")
     fid = h5open(filename, "r")
     ψ .= arraytype(read(fid["psi"]))
     close(fid)

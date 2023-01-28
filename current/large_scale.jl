@@ -14,8 +14,9 @@ maxind = minimum([40, floor(Int, N[1] / 2)])
 index_choices = 2:maxind
 forcing_amplitude = 300.0
 ϵ = 1.0
+ω = 0.0
 
-constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω = ω)
 parameters = (; auxiliary, operators, constants)
 
 load_psi!(ψ)
@@ -42,9 +43,9 @@ uθ_list = Float64[]
 
 push!(uθ_list, real(mean(θ .* u)))
 push!(eke_list, real(mean(u .* u + v .* v)))
-
+t .= 0.0
 for i = iter
-    step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, parameters)
+    step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
     push!(uθ_list, real(mean(θ .* u)))
     if i % 10 == 0
         θ_min, θ_max = extrema(real.(θ))

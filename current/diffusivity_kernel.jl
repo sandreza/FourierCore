@@ -14,8 +14,15 @@ end
 
 forcing_amplitude = 300
 ϵ = 0.0
+ω = 0
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω = ω)
+parameters = (; auxiliary, operators, constants)
+
+
 load_psi!(ψ)
-ζ .= ifft(Δ .* fft(ψ))
+P * ψ;
+ζ .= Δ .* ψ
+P⁻¹ * ζ
 
 tstart = 250.0
 tend = 500.0
@@ -23,10 +30,6 @@ tend = 500.0
 maxind = minimum([40, floor(Int, N[1] / 2)])
 # maxind = 2
 index_choices = 2:maxind
-
-
-constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ)
-parameters = (; auxiliary, operators, constants)
 
 
 start_index = floor(Int, tstart / Δt)

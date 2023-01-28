@@ -10,7 +10,7 @@ Random.seed!(12)
 
 phase_speed = 1.0
 N = 2^7
-N_ens = 2^7 # 2^7
+N_ens = 2^3 # 2^7
 Ns = (N, N, N_ens)
 κ = 1e-3 
 ν = sqrt(1e-5 / 2) # raised to the hypoviscocity_power
@@ -130,9 +130,9 @@ auxiliary = (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ
 constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ)
 parameters = (; auxiliary, operators, constants)
 
-function load_psi!(ψ; filename="/storage5/NonlocalPassiveTracers/Current/" * "prototype.hdf5")
+function load_psi!(ψ; filename="/storage5/NonlocalPassiveTracers/Current/" * "proto_default_case.hdf5")
     fid = h5open(filename, "r")
-    ψ .= arraytype(read(fid["psi"]))
+    ψ .= arraytype(read(fid["stream function"]))
     close(fid)
     return nothing
 end

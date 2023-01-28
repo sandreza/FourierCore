@@ -5,7 +5,7 @@ using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 
-scaleit = 4
+scaleit = 1
 tstart = 25.0 * scaleit
 tend = 50.0 * scaleit
 
@@ -15,12 +15,16 @@ index_choices = 2:maxind
 forcing_amplitude = 300.0
 ϵ = 1.0
 ω = 0.0
-
-constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω = ω)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
 parameters = (; auxiliary, operators, constants)
 
 load_psi!(ψ)
-ζ .= ifft(Δ .* fft(ψ))
+P * ψ;
+ζ .= Δ .* ψ
+P⁻¹ * ζ
+@. u = (∂y * ψ)
+P⁻¹ * u
+θ .= u
 
 
 start_index = floor(Int, tstart / Δt)
@@ -33,10 +37,7 @@ rand!(rng, φ) # between 0, 1
 φ .*= 2π # to make it a random phase
 
 θ̄ = arraytype(zeros(ComplexF64, N, N, N_ens))
-P * ψ
-@. u = (∂y * ψ)
-P⁻¹ * u
-θ .= u
+
 iter = ProgressBar(1:iend)
 eke_list = Float64[]
 uθ_list = Float64[]
@@ -51,7 +52,7 @@ for i = iter
         θ_min, θ_max = extrema(real.(θ))
         ζ_min, ζ_max = extrema(real.(ζ))
         s1 = "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max"
-        s2 =  "\nuθ   : $(uθ_list[i])"
+        s2 = "\nuθ   : $(uθ_list[i])"
         set_multiline_postfix(iter, s1 * s2)
     end
     if i > start_index

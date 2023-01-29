@@ -26,7 +26,6 @@ P⁻¹ * ζ
 P⁻¹ * u
 θ .= u
 
-
 start_index = floor(Int, tstart / Δt)
 sθ .= 0.0
 θ .= 0

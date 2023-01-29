@@ -5,18 +5,23 @@ using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 
+#=
 scaleit = 2^3
 tstart = 2^5 * scaleit
 tend = 2^6 * scaleit
-
+defined outside script 
+=#
 maxind = minimum([40, floor(Int, N[1] / 2)])
 # maxind = 2
 index_choices = 2:maxind
+#=
 forcing_amplitude = 300.0
 ϵ = 1.0
 ω = 0.0
 constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
 parameters = (; auxiliary, operators, constants)
+defined outsdie script
+=#
 
 load_psi!(ψ)
 P * ψ;
@@ -39,16 +44,16 @@ rand!(rng, φ) # between 0, 1
 θ̄ = arraytype(zeros(ComplexF64, N, N, N_ens))
 
 iter = ProgressBar(1:iend)
-eke_list = Float64[]
+ke_list = Float64[]
 uθ_list = Float64[]
 
 push!(uθ_list, real(mean(θ .* u)))
-push!(eke_list, real(mean(u .* u + v .* v)))
+push!(ke_list, real(mean(u .* u + v .* v)))
 t .= 0.0
 for i = iter
     step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
     push!(uθ_list, real(mean(θ .* u)))
-    if i % 10 == 0
+    if i % mod_index == 0
         θ_min, θ_max = extrema(real.(θ))
         ζ_min, ζ_max = extrema(real.(ζ))
         s1 = "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max"
@@ -59,8 +64,8 @@ for i = iter
         # u is already in real space as is θ
         θ̄ .+= Δt .* θ .* u
     end
-    if i % 10 == 0
-        push!(eke_list, real(mean(u .* u + v .* v)))
+    if i % mod_index == 0
+        push!(ke_list, real(mean(u .* u + v .* v)))
     end
 end
 

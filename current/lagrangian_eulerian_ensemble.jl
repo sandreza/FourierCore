@@ -1,20 +1,25 @@
 sθ .= 0.0
 
+#=
 scaleit = 2^3
 tstart = 2^5 * scaleit
 tend = 2^6 * scaleit
+are defined outside
+=#
 
 iend = ceil(Int, tend / Δt)
-start_index = floor(Int, tstart / Δt)
+start_index = round(Int, tstart / Δt)
 eulerian_list = Float64[]
 lagrangian_list = Float64[]
 ke_list = Float64[]
 tlist = Float64[]
 
-mod_index = 10 # save every other mod index
-decorrelation_index = 2^12 # how many steps till we reinitialize tracer
+#=
+mod_index = 2^3 # save every other mod index
+decorrelation_index = 2^11 # how many steps till we reinitialize tracer
 decorrelation_index2 = 2^13 # how many steps till we reinitialize u₀
-
+are defined outside
+=#
 t .= 0.0
 iter = ProgressBar(1:iend)
 for i = iter
@@ -25,7 +30,6 @@ for i = iter
     end
     if (i > start_index) && (i % mod_index == 0)
         if i % decorrelation_index == 0
-            # decorrelates after 4000 timesteps
             θ .= u
         end
         if i % decorrelation_index2 == 0
@@ -41,6 +45,8 @@ for i = iter
 
         θ_min, θ_max = extrema(real.(θ))
         ζ_min, ζ_max = extrema(real.(ζ))
-        set_multiline_postfix(iter, "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max")
+        s1 = "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max"
+        s2 = "\nuu : $(uu[i]) \nuθ : $(tmpuθ[i])"
+        set_multiline_postfix(iter, s1 * s2)
     end
 end

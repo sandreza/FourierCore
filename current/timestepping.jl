@@ -1,3 +1,4 @@
+@info "Defining rhs timestepping"
 function rhs!(Ṡ, S, t, parameters)
     θ̇ = view(Ṡ, :, :, :, 1)
     ζ̇ = view(Ṡ, :, :, :, 2)
@@ -63,7 +64,7 @@ function rhs!(Ṡ, S, t, parameters)
 
     # rhs
     @. ζ̇ = real((-u * ∂ˣζ - v * ∂ʸζ - ∂ˣuζ - ∂ʸvζ) * 0.5 + 𝒟ζ + sζ)
-    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 + 𝒟θ + sθ + u  * ϵ * cos(ω * t[1]) ) # might want to change to for ω in ωs loop
+    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 + 𝒟θ + sθ + u * ϵ * cos(ω * t[1])) # might want to change to for ω in ωs loop
     @. S = real(S)
     @. Ṡ = real(Ṡ)
 
@@ -87,3 +88,5 @@ function step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters
     @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
     return nothing
 end
+
+@info "Done with timestepping"

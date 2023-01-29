@@ -5,18 +5,24 @@ using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 
+#=
 scaleit = 2^3
 tstart = 2^5 * scaleit
 tend = 2^6 * scaleit
+defined outside
+=#
 
 maxind = minimum([40, floor(Int, N[1] / 2)])
-# maxind = 2
 index_choices = 2:maxind
+
+#= 
 forcing_amplitude = 300.0
 ϵ = 1.0
 ω = 2π / 2^5
 constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
 parameters = (; auxiliary, operators, constants)
+
+=# 
 
 load_psi!(ψ)
 P * ψ;

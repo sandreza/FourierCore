@@ -7,7 +7,7 @@ N = 2^7
 N_ens = 2^2 # 2^7
 Ns = (N, N, N_ens)
 
-include("initialize_fields.jl")
+include("initialize_fields.jl") # allocates memory for efficiency, defines stream function vorticity etc.
 
 # initialize constants
 κ = 1e-3 # diffusivity for scalar
@@ -70,12 +70,37 @@ P * ψ;
 P⁻¹ * ζ; # initalize stream function and vorticity
 ϵ = 1.0    # large scale parameter, 0 means off, 1 means on
 ω = 0.0    # frequency, 0 means no time dependence
+
+# need to change the parameters and constants every time
 constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 include("large_scale.jl")
 fid = h5open(directory * filename * ".hdf5", "r+")
-fid["large scale effective diffusivity"] = effective_diffusivities
-fid["kernel"] = kernel
+fid["large scale effective diffusivity (with time)"] = uθ_list
+fid["large scale effective diffusivity times"] = tlist
+fid["large scale effective diffusivity"] = mean(uθ_list[start_index:end])
+close(fid)
+
+## Large scale time dependent case
+scaleit = 2^3
+tstart = 2^5 * scaleit
+tend = 2^6 * scaleit
+load_psi!(ψ; filename=filename) # was defined in the initalize fields file
+P * ψ;
+ζ .= Δ .* ψ;
+P⁻¹ * ζ; # initalize stream function and vorticity
+ϵ = 1.0    # large scale parameter, 0 means off, 1 means on
+T = 2^5    # power of two for convience
+ω = 2π/T   # frequency, 0 means no time dependence
+
+# need to change the parameters and constants every time
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
+parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
+include("large_scale.jl")
+fid = h5open(directory * filename * ".hdf5", "r+")
+fid["time dependent large scale effective diffusivity"] = uθ_list
+fid["time dependent large scale effective diffusivity times"] = tlist
+fid["time dependent large scale angular frequencies"] = ω
 close(fid)
 
 

@@ -12,7 +12,6 @@ tend = 2^6 * scaleit
 defined outside script 
 =#
 maxind = minimum([40, floor(Int, N[1] / 2)])
-# maxind = 2
 index_choices = 2:maxind
 #=
 forcing_amplitude = 300.0
@@ -23,10 +22,7 @@ parameters = (; auxiliary, operators, constants)
 defined outsdie script
 =#
 
-load_psi!(ψ)
-P * ψ;
-ζ .= Δ .* ψ
-P⁻¹ * ζ
+# initialize tracer with velocity field
 @. u = (∂y * ψ)
 P⁻¹ * u
 θ .= u
@@ -34,7 +30,6 @@ P⁻¹ * u
 
 start_index = floor(Int, tstart / Δt)
 sθ .= 0.0
-θ .= 0
 t = [0.0]
 iend = ceil(Int, tend / Δt)
 # new realization of flow
@@ -46,13 +41,16 @@ rand!(rng, φ) # between 0, 1
 iter = ProgressBar(1:iend)
 ke_list = Float64[]
 uθ_list = Float64[]
+tlist = Float64[]
 
 push!(uθ_list, real(mean(θ .* u)))
 push!(ke_list, real(mean(u .* u + v .* v)))
+push!(tlist, t[1])
 t .= 0.0
 for i = iter
     step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
     push!(uθ_list, real(mean(θ .* u)))
+    push!(tlist, t[1])
     if i % mod_index == 0
         θ_min, θ_max = extrema(real.(θ))
         ζ_min, ζ_max = extrema(real.(ζ))

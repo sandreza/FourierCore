@@ -18,7 +18,7 @@ hypoviscocity_power = 2
 f_amp = 300 # forcing amplitude
 forcing_amplitude = f_amp * (N / 2^7)^2 # due to FFT nonsense [check if this is true]
 ϵ = 0.0    # large scale parameter, 0 means off, 1 means on
-ω = 0.0    # frequency, 0 means no time dependence
+ωs = [0.0]    # frequency, 0 means no time dependence
 Δt = 1 / N # timestep
 t = [0.0]  # time
 kmax = 30  # filter for forcing
@@ -35,7 +35,7 @@ mod_index = 2^3 # save every other mod index
 decorrelation_index = 2^11 # how many steps till we reinitialize tracer, for lagrangian decorrelation
 decorrelation_index2 = 2^13 # how many steps till we reinitialize u₀, for eulerian decorrelation
 
-constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ωs=ωs)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 include("initialize_ensembles.jl")
 
@@ -50,7 +50,7 @@ P * ψ;
 ζ .= Δ .* ψ;
 P⁻¹ * ζ; # initalize stream function and vorticity
 
-constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ωs=ωs)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 include("diffusivity_kernel.jl") # tracer is initialized in here
 
@@ -69,16 +69,17 @@ P * ψ;
 ζ .= Δ .* ψ;
 P⁻¹ * ζ; # initalize stream function and vorticity
 ϵ = 1.0    # large scale parameter, 0 means off, 1 means on
-ω = 0.0    # frequency, 0 means no time dependence
+ωs = [0.0]    # frequency, 0 means no time dependence
 
 # need to change the parameters and constants every time
-constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ωs=ωs)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 include("large_scale.jl")
 fid = h5open(directory * filename * ".hdf5", "r+")
-fid["large scale effective diffusivity (with time)"] = uθ_list
+fid["large scale effective diffusivity (with time evolution)"] = uθ_list
 fid["large scale effective diffusivity times"] = tlist
-fid["large scale effective diffusivity"] = mean(uθ_list[start_index:end])
+large_scale = mean(uθ_list[start_index:end])
+fid["large scale effective diffusivity"] = large_scale
 close(fid)
 
 ## Large scale time dependent case
@@ -90,17 +91,18 @@ P * ψ;
 ζ .= Δ .* ψ;
 P⁻¹ * ζ; # initalize stream function and vorticity
 ϵ = 1.0    # large scale parameter, 0 means off, 1 means on
-T = 2^5    # power of two for convience
-ω = 2π/T   # frequency, 0 means no time dependence
+Ts = [2^5]    # power of two for convience
+ωs = [2π/T for T in Ts]   # frequency, 0 means no time dependence
 
 # need to change the parameters and constants every time
-constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ω=ω)
+constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ωs=ωs)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 include("large_scale.jl")
 fid = h5open(directory * filename * ".hdf5", "r+")
 fid["time dependent large scale effective diffusivity"] = uθ_list
 fid["time dependent large scale effective diffusivity times"] = tlist
-fid["time dependent large scale angular frequencies"] = ω
+fid["time dependent large scale angular frequencies"] = ωs
+fid["time dependent large scale periods"] = Ts
 close(fid)
 
 

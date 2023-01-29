@@ -1,3 +1,4 @@
+@show "initializing ensembles"
 include("lagrangian_eulerian_ensemble.jl")
 
 # lagrangian further ensemble averaging
@@ -50,3 +51,5 @@ fid["domain size x"] = Ω[1].b - Ω[1].a
 fid["domain size y"] = Ω[2].b - Ω[2].a
 fid["dt"] = Δt
 close(fid)
+
+@show "done initializing ensembles"

@@ -1,3 +1,4 @@
+@info "diffusivity kernel"
 using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
 # using GLMakie, HDF5
@@ -69,7 +70,7 @@ end
 
 tmp = Array(real.(fft(mean(θ̄, dims=(2, 3))[:]))) # tmp = real.(fft(Array(mean(θ[:,:,1:10], dims = (2,3)))[:]))
 kxa = Array(kˣ)[:]
-effective_diffusivities = ((N[1] / 2) ./ tmp ) ./ (kxa .^ 2) .- κ # (((N[1] / 2) ./ tmp) .- λ) ./ (kxa .^ 2) .- κ
+effective_diffusivities = ((N[1] / 2) ./ tmp) ./ (kxa .^ 2) .- κ # (((N[1] / 2) ./ tmp) .- λ) ./ (kxa .^ 2) .- κ
 effective_diffusivities = effective_diffusivities[index_choices]
 
 # estimate kernel on grid
@@ -77,6 +78,7 @@ kernel = real.(fft([0.0, effective_diffusivities..., zeros(65)..., reverse(effec
 kernel = kernel .- mean(kernel[63:65])
 kernel = circshift(kernel, 64)
 
+@info "done with diffusivity kernel"
 #=
 fig = Figure()
 ax = Axis(fig[1, 1], xlabel="x", ylabel="y", aspect=1)

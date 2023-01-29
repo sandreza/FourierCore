@@ -1,3 +1,4 @@
+@info "large scale case"
 using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, JLD2
 # using GLMakie, HDF5
@@ -36,7 +37,7 @@ iend = ceil(Int, tend / Δt)
 rand!(rng, φ) # between 0, 1
 φ .*= 2π # to make it a random phase
 
-θ̄ = arraytype(zeros(ComplexF64, N, N, N_ens))
+# θ̄ = arraytype(zeros(ComplexF64, N, N, N_ens))
 
 iter = ProgressBar(1:iend)
 ke_list = Float64[]
@@ -60,12 +61,14 @@ for i = iter
     end
     if i > start_index
         # u is already in real space as is θ
-        θ̄ .+= Δt .* θ .* u
+        # θ̄ .+= Δt .* θ .* u
     end
     if i % mod_index == 0
         push!(ke_list, real(mean(u .* u + v .* v)))
     end
 end
 
-θ̄ ./= (tend - tstart)
-θ̄_A = Array(real.(θ̄))
+# θ̄ ./= (tend - tstart)
+# θ̄_A = Array(real.(θ̄))
+
+@info "done with large scale case"

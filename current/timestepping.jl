@@ -7,7 +7,7 @@ function rhs!(Ṡ, S, t, parameters)
 
     (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x, ∂y) = parameters.operators
     (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ) = parameters.auxiliary
-    (; forcing_amplitude, ϵ, ω) = parameters.constants
+    (; forcing_amplitude, ϵ, ωs) = parameters.constants
 
     # construct source for vorticity 
     # @. sζ = ψ
@@ -64,7 +64,10 @@ function rhs!(Ṡ, S, t, parameters)
 
     # rhs
     @. ζ̇ = real((-u * ∂ˣζ - v * ∂ʸζ - ∂ˣuζ - ∂ʸvζ) * 0.5 + 𝒟ζ + sζ)
-    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 + 𝒟θ + sθ + u * ϵ * cos(ω * t[1])) # might want to change to for ω in ωs loop
+    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 + 𝒟θ + sθ) 
+    for ω in ωs 
+        @. θ̇ +=  real(u * ϵ * cos(ω * t[1]))
+    end
     @. S = real(S)
     @. Ṡ = real(Ṡ)
 

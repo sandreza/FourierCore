@@ -1,21 +1,41 @@
 include("timestepping.jl") # independent of everything else
 
-filename = "case_1" # used in "initialize_ensembles.jl" file
+# filename = "case_1" # used in "initialize_ensembles.jl" file
+# f_amp = 10 # forcing amplitude
+#=
+f_amps = [150, 300, 450]
+νs = [sqrt(1e-5/2)] # [sqrt(1e-4), sqrt(1e-5 / 2)]
+ν_hs = [sqrt(1e-3), sqrt(1e-4)]
 
+ii = 1 
+jj = 1
+kk = 1
+f_amp = f_amps[ii]
+ν = νs[jj]
+ν_h = ν_hs[kk]
+defined outside
+=#
+# for (ii, f_amp) in ProgressBar(enumerate(f_amps))
+# for (jj, ν) in enumerate(νs)
+# for (kk, ν_h) in enumerate(ν_hs)
+
+filename = "case_" * string(ii) * "_" * string(jj) * "_" * string(kk)
+println("---------------------------------")
+println("Computing case $filename with f_amp = $f_amp, ν = $(ν^2), ν_h = $(ν_h^2)")
 # Initialize the fields, choose domain size
 N = 2^7
-N_ens = 2^2 # 2^7
+N_ens = 2^5 # 2^7
 Ns = (N, N, N_ens)
 
 include("initialize_fields.jl") # allocates memory for efficiency, defines stream function vorticity etc.
 
 # initialize constants
 κ = 1e-3 # diffusivity for scalar
-ν = sqrt(1e-5 / 2) # raised to the dissipation power
+# ν = sqrt(1e-5 / 2) # raised to the dissipation power
 dissipation_power = 2
-ν_h = sqrt(1e-3) # raised to the hypoviscocity_power 
+# ν_h = sqrt(1e-3) # raised to the hypoviscocity_power 
 hypoviscocity_power = 2
-f_amp = 300 # forcing amplitude
+
 forcing_amplitude = f_amp * (N / 2^7)^2 # due to FFT nonsense [check if this is true]
 ϵ = 0.0    # large scale parameter, 0 means off, 1 means on
 ωs = [0.0]    # frequency, 0 means no time dependence
@@ -91,7 +111,7 @@ P * ψ;
 ζ .= Δ .* ψ;
 P⁻¹ * ζ; # initalize stream function and vorticity
 ϵ = 1.0    # large scale parameter, 0 means off, 1 means on
-Ts = [2^5]    # power of two for convience
+Ts = [2^i for i in [0, 1, 2, 3, 4, 5, 6, 7]]    # power of two for convience
 ωs = [2π/T for T in Ts]   # frequency, 0 means no time dependence
 
 # need to change the parameters and constants every time
@@ -105,6 +125,9 @@ fid["time dependent large scale angular frequencies"] = ωs
 fid["time dependent large scale periods"] = Ts
 close(fid)
 
+# end
+# end
+# end
 
 #=
 include("diffusivity_kernel.jl")

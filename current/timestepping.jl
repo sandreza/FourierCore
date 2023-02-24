@@ -64,9 +64,9 @@ function rhs!(Ṡ, S, t, parameters)
 
     # rhs
     @. ζ̇ = real((-u * ∂ˣζ - v * ∂ʸζ - ∂ˣuζ - ∂ʸvζ) * 0.5 + 𝒟ζ + sζ)
-    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 + 𝒟θ + sθ) 
-    for ω in ωs 
-        @. θ̇ +=  real(u * ϵ * cos(ω * t[1]))
+    @. θ̇ = real((-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5 + 𝒟θ + sθ)
+    for ω in ωs
+        @. θ̇ += real(u * ϵ * cos(ω * t[1]))
     end
     @. S = real(S)
     @. Ṡ = real(Ṡ)
@@ -94,7 +94,7 @@ end
 
 @info "Done with timestepping"
 
-@info "Defining rhs timestepping"
+@info "Defining rhs timestepping for shallow water equations"
 function rhs_shallow_water!(Ṡ, S, t, parameters)
     dhdt = view(Ṡ, :, :, 1)
     dhudt = view(Ṡ, :, :, 2)
@@ -103,44 +103,55 @@ function rhs_shallow_water!(Ṡ, S, t, parameters)
     hu = view(S, :, :, 2)
     hθ = view(S, :, :, 3)
 
-    (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x) = parameters.operators
-    (; ψ, x, y, φ, ∂ˣhu, 𝒟h, ∂ˣhu², ∂ˣhu, ∂ˣu, ∂ˣh, 𝒟hu, ∂ˣhuθ, ∂ˣθ, 𝒟hθ, shu, u, θ, hu², huθ) = parameters.auxiliary
-    (; forcing_amplitude, ϵ, ωs) = parameters.constants
+    (; P, P⁻¹, 𝒟ν, 𝒟κ, ∂x) = parameters.operators
+    (; φ, ∂ˣhu, 𝒟h, ∂ˣhu², ∂ˣhu, ∂ˣu, ∂ˣh, 𝒟hu, ∂ˣhuθ, ∂ˣθ, 𝒟hθ, shu, u, θ, hu², huθ) = parameters.auxiliary
+    (; c, g) = parameters.constants
 
     # FFT 
     @. u = hu / h
     @. θ = hθ / h
     @. hu² = hu * u
     @. huθ = hu * θ
-    P * h; P * hu; P * hθ; P * u; P * θ ; P * hu²; P * huθ
+    P * h
+    P * hu
+    P * hθ
+    P * u
+    P * θ
+    P * hu²
+    P * huθ
 
     # Derivatives 
     @. ∂ˣhu² = ∂x * hu²
-    @. ∂ˣhu = ∂x * hu 
-    @. ∂ˣu = ∂x * u 
-    @. ∂ˣh = ∂x * h 
+    @. ∂ˣhu = ∂x * hu
+    @. ∂ˣu = ∂x * u
+    @. ∂ˣh = ∂x * h
     @. ∂ˣhuθ = ∂x * huθ
-    @. ∂ˣθ = ∂x * θ 
-    @. 𝒟h = 𝒟κ * h 
+    @. ∂ˣθ = ∂x * θ
+    @. 𝒟h = 𝒟κ * h
     @. 𝒟hu = 𝒟ν * hu
-    @. 𝒟hθ = 𝒟κ * hθ 
+    @. 𝒟hθ = 𝒟κ * hθ
 
     # IFFT 
-    P⁻¹ * h; P⁻¹ * hu; P⁻¹ * hθ;
-    P⁻¹ * ∂ˣhu²;
-    P⁻¹ * ∂ˣhu; 
+    P⁻¹ * h
+    P⁻¹ * hu
+    P⁻¹ * hθ
+    P⁻¹ * ∂ˣhu²
+    P⁻¹ * ∂ˣhu
     P⁻¹ * ∂ˣu
-    P⁻¹ * ∂ˣh 
-    P⁻¹ * ∂ˣhuθ 
+    P⁻¹ * ∂ˣh
+    P⁻¹ * ∂ˣhuθ
     P⁻¹ * ∂ˣθ
-    P⁻¹ * 𝒟h 
-    P⁻¹ * 𝒟hu 
-    P⁻¹ * 𝒟hθ 
+    P⁻¹ * 𝒟h
+    P⁻¹ * 𝒟hu
+    P⁻¹ * 𝒟hθ
+
+    ## Source 
+    @. shu = cos(c * t[1] + φ)
 
     # rhs
     @. dhdt = real(-∂ˣhu + 𝒟h)
-    @. dhudt = real((-∂ˣhu² - hu/h * ∂ˣhu - hu * ∂ˣu) * 0.5 - h * ∂ˣh + shu + 𝒟hu)
-    @. dhθdt = real((-∂ˣhuθ - hθ/h * ∂ˣhu - hu * ∂ˣθ) * 0.5 + 𝒟hθ)
+    @. dhudt = real((-∂ˣhu² - hu / h * ∂ˣhu - hu * ∂ˣu) * 0.5 - g * h * ∂ˣh + shu + 𝒟hu)
+    @. dhθdt = real((-∂ˣhuθ - hθ / h * ∂ˣhu - hu * ∂ˣθ) * 0.5 + 𝒟hθ)
 
     @. S = real(S)
     @. Ṡ = real(Ṡ)
@@ -165,3 +176,5 @@ function step_shallow_water!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng,
     @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
     return nothing
 end
+
+@info "Done with timestepping for shallow water equations"

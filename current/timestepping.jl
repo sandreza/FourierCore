@@ -93,3 +93,75 @@ function step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters
 end
 
 @info "Done with timestepping"
+
+@info "Defining rhs timestepping"
+function rhs_shallow_water!(Ṡ, S, t, parameters)
+    dhdt = view(Ṡ, :, :, 1)
+    dhudt = view(Ṡ, :, :, 2)
+    dhθdt = view(Ṡ, :, :, 3)
+    h = view(S, :, :, 1)
+    hu = view(S, :, :, 2)
+    hθ = view(S, :, :, 3)
+
+    (; P, P⁻¹, Δ⁻¹, waver, 𝒟ν, 𝒟κ, ∂x) = parameters.operators
+    (; ψ, x, y, φ, ∂ˣhu, 𝒟h, ∂ˣhu², ∂ˣhu, ∂ˣu, ∂ˣh, 𝒟hu, ∂ˣhuθ, ∂ˣθ, 𝒟hθ, shu, u, θ, hu², huθ) = parameters.auxiliary
+    (; forcing_amplitude, ϵ, ωs) = parameters.constants
+
+    # FFT 
+    @. u = hu / h
+    @. θ = hθ / h
+    @. hu² = hu * u
+    @. huθ = hu * θ
+    P * h; P * hu; P * hθ; P * u; P * θ ; P * hu²; P * huθ
+
+    # Derivatives 
+    @. ∂ˣhu² = ∂x * hu²
+    @. ∂ˣhu = ∂x * hu 
+    @. ∂ˣu = ∂x * u 
+    @. ∂ˣh = ∂x * h 
+    @. ∂ˣhuθ = ∂x * huθ
+    @. ∂ˣθ = ∂x * θ 
+    @. 𝒟h = 𝒟κ * h 
+    @. 𝒟hu = 𝒟ν * hu
+    @. 𝒟hθ = 𝒟κ * hθ 
+
+    # IFFT 
+    P⁻¹ * h; P⁻¹ * hu; P⁻¹ * hθ;
+    P⁻¹ * ∂ˣhu²;
+    P⁻¹ * ∂ˣhu; 
+    P⁻¹ * ∂ˣu
+    P⁻¹ * ∂ˣh 
+    P⁻¹ * ∂ˣhuθ 
+    P⁻¹ * ∂ˣθ
+    P⁻¹ * 𝒟h 
+    P⁻¹ * 𝒟hu 
+    P⁻¹ * 𝒟hθ 
+
+    # rhs
+    @. dhdt = real(-∂ˣhu + 𝒟h)
+    @. dhudt = real((-∂ˣhu² - hu/h * ∂ˣhu - hu * ∂ˣu) * 0.5 - h * ∂ˣh + shu + 𝒟hu)
+    @. dhθdt = real((-∂ˣhuθ - hθ/h * ∂ˣhu - hu * ∂ˣθ) * 0.5 + 𝒟hθ)
+
+    @. S = real(S)
+    @. Ṡ = real(Ṡ)
+
+    return nothing
+end
+
+function step_shallow_water!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
+    rhs_shallow_water!(k₁, S, t, parameters)
+    @. S̃ = S + Δt * k₁ * 0.5
+    randn!(rng, φ̇)
+    t[1] += Δt / 2
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 0.5, note the factor of two has been accounted for
+    rhs_shallow_water!(k₂, S̃, t, parameters)
+    @. S̃ = S + Δt * k₂ * 0.5
+    rhs_shallow_water!(k₃, S̃, t, parameters)
+    @. S̃ = S + Δt * k₃
+    randn!(rng, φ̇)
+    t[1] += Δt / 2
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 1.0, note the factor of two has been accounted for
+    rhs_shallow_water!(k₄, S̃, t, parameters)
+    @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+    return nothing
+end

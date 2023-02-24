@@ -39,7 +39,7 @@ hypoviscocity_power = 2
 forcing_amplitude = f_amp * (N / 2^7)^2 # due to FFT nonsense [check if this is true]
 ϵ = 0.0    # large scale parameter, 0 means off, 1 means on
 ωs = [0.0]    # frequency, 0 means no time dependence
-Δt = 1 / N # timestep
+Δt = 1 / 2N # timestep
 t = [0.0]  # time
 kmax = 30  # filter for forcing
 

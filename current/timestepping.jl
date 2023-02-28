@@ -214,11 +214,11 @@ function rhs_shallow_water!(Ṡ, S, t, parameters)
     P⁻¹ * 𝒟θ
 
     ## Source 
-    @. shu = U * cos(x - c * t[1] + φ)
+    @. shu = U * cos(x - c * t[1] + φ) 
 
     # rhs
     @. dhdt = real(-∂ˣhu + 𝒟h)
-    @. dudt = real((-∂ˣu² - g * ∂ˣh) * 0.5 + shu + 𝒟u)
+    @. dudt = real((-∂ˣu² * 0.5 - g * ∂ˣh)  + shu + 𝒟u)
     @. dθdt = real(-∂ˣuθ + 𝒟θ)
 
     @. S = real(S)

@@ -168,7 +168,7 @@ function rhs_shallow_water!(Ṡ, S, t, parameters)
     u = view(S, :, :, 2)
     θ = view(S, :, :, 3)
 
-    (; P, P⁻¹, 𝒟ν, 𝒟κ, ∂x) = parameters.operators
+    (; P, P⁻¹, 𝒟ν, 𝒟κ, 𝒟κtr, ∂x) = parameters.operators
     (; φ, ∂ˣhu, 𝒟h, ∂ˣu², ∂ˣu, ∂ˣh, 𝒟u, ∂ˣuθ, ∂ˣθ, 𝒟θ, shu, u, θ, u², uθ, x) = parameters.auxiliary
     (; c, g) = parameters.constants
 
@@ -193,7 +193,7 @@ function rhs_shallow_water!(Ṡ, S, t, parameters)
     @. ∂ˣθ = ∂x * θ
     @. 𝒟h = 𝒟κ * h
     @. 𝒟u = 𝒟ν * u
-    @. 𝒟θ = 𝒟κ * θ
+    @. 𝒟θ = 𝒟κtr * θ
 
     # IFFT 
     P⁻¹ * h

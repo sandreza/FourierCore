@@ -1,6 +1,6 @@
 using GLMakie, HDF5
 
-filename = "shallow water2"
+filename = "shallow_water"
 directory = "/storage5/NonlocalPassiveTracers/Current/"
 fid = h5open(directory * filename * ".hdf5", "r")
 

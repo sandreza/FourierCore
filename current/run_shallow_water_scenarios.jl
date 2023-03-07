@@ -1,18 +1,19 @@
 include("initialize_shallow_water_fields.jl")
 Random.seed!(12345)
-filename = "shallow water"
+filename = "shallow_water_large_kappa"
 directory = "/storage5/NonlocalPassiveTracers/Current/"
 fid = h5open(directory * filename * ".hdf5", "w")
 ##
 φ_speeds = collect(0:0.1:1)
-κtrs = [1e-2, 5e-2, 0.15, 0.2]
+κtrs = [0.3, 0.5] # [1e-2, 5e-2, 0.15, 0.2] # 
 case_number = 0
 for κtr in ProgressBar(κtrs)
 for φ_speed in ProgressBar(φ_speeds)
+# κtr = 1.0
+# φ_speed = 0.0 
 
 global case_number += 1
-# φ_speed = 0.3
-# κtr = 5e-2
+
 
 c = 0.1
 g = 1.0
@@ -27,7 +28,7 @@ rand!(rng, φ)
 
 Δx = x[2] - x[1]
 cfl = 0.2
-Δt = cfl * Δx / maximum([U, c, κ / Δx, ν / Δx])
+Δt = cfl * Δx / maximum([U, c, κ / Δx, ν / Δx, κtr / Δx])
 
 
 𝒟ν = @. ν * Δ
@@ -97,7 +98,7 @@ flux = mean(tmparray)
 tmp2 = [mean(ensemble_mean_flux[i]) for i in length(ensemble_mean_flux)-100:length(ensemble_mean_flux)]
 tmp2_hist = [mean(ensemble_mean_flux[i]) for i in 1:length(ensemble_mean_flux)]
 tlist = 10Δt .* collect(1:length(tmp2_hist))
-scatter(tlist, tmp2_hist)
+# scatter(tlist, tmp2_hist)
 
 tmparray = zeros(Ns[1])
 for i in floor(Int, length(ensemble_mean_flux) / 2):length(ensemble_mean_flux)

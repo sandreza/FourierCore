@@ -170,7 +170,7 @@ function rhs_shallow_water!(Ṡ, S, t, parameters)
 
     (; P, P⁻¹, 𝒟ν, 𝒟κ, 𝒟κtr, ∂x) = parameters.operators
     (; φ, ∂ˣhu, 𝒟h, ∂ˣu², ∂ˣu, ∂ˣh, 𝒟u, ∂ˣuθ, ∂ˣθ, 𝒟θ, shu, u, θ, u², uθ, x) = parameters.auxiliary
-    (; c, g) = parameters.constants
+    (; U, c, g) = parameters.constants
 
     # FFT 
     @. hu = h * u

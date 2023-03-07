@@ -12,7 +12,7 @@ include("timestepping.jl")
 rng = MersenneTwister(12345)
 Random.seed!(12)
 
-Ns = (128, 128 * 8)
+Ns = (128, 1024*4)
 Ω = S¹(2π) × S¹(1)
 grid = FourierGrid(Ns, Ω, arraytype=ArrayType)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers

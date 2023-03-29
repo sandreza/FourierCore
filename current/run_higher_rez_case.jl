@@ -16,7 +16,7 @@ println("---------------------------------")
 println("Computing case $filename with f_amp = $f_amp, ν = $(ν^2), ν_h = $(ν_h^2)")
 # Initialize the fields, choose domain size
 N = 2^8
-N_ens = 2^7 # 2^7
+N_ens = 2^5 # 2^7
 Ns = (N, N, N_ens)
 
 include("initialize_fields.jl") # allocates memory for efficiency, defines stream function vorticity etc.
@@ -28,7 +28,7 @@ dissipation_power = 2
 # ν_h = sqrt(1e-3) # raised to the hypoviscocity_power 
 hypoviscocity_power = 2
 
-forcing_amplitude = f_amp * (N / 2^7)^2 # due to FFT nonsense [check if this is true]
+forcing_amplitude = f_amp # * (N / 2^7)^2 # due to FFT nonsense [check if this is true]
 ϵ = 0.0    # large scale parameter, 0 means off, 1 means on
 ωs = [0.0]    # frequency, 0 means no time dependence
 Δt = 1 / 2N # timestep

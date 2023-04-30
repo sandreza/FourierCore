@@ -12,6 +12,7 @@
 *.so*
 *.json*
 *.png*
+*.mp4*
 
 *tmp*
 

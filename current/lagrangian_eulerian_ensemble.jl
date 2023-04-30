@@ -43,10 +43,10 @@ for i = iter
         push!(ke_list, real(mean(u .* u + v .* v)))
         push!(tlist, t[1])
 
-        θ_min, θ_max = extrema(real.(θ))
-        ζ_min, ζ_max = extrema(real.(ζ))
+        θ_min, θ_max = extrema(Array(real.(θ))[:])
+        ζ_min, ζ_max = extrema(Array(real.(ζ))[:])
         s1 = "θ_min: $θ_min \nθ_max: $θ_max \nζ_min: $ζ_min \nζ_max: $ζ_max"
-        s2 = "\nuu : $(uu[i]) \nuθ : $(tmpuθ[i])"
-        set_multiline_postfix(iter, s1 * s2)
+        s2 = "\nuu : $(uu) \nuθ : $(tmpuθ)"
+        set_multiline_postfix(iter, s1 * s2 )
     end
 end

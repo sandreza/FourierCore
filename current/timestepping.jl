@@ -92,6 +92,32 @@ function step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters
     return nothing
 end
 
+function step_filter!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
+    rhs!(k₁, S, t, parameters)
+    @. S̃ = S + Δt * k₁ * 0.5
+    momentum_filter(S̃)
+    momentum_filter(k₁)
+    randn!(rng, φ̇)
+    t[1] += Δt / 2
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 0.5, note the factor of two has been accounted for
+    rhs!(k₂, S̃, t, parameters)
+    @. S̃ = S + Δt * k₂ * 0.5
+    momentum_filter(S̃)
+    momentum_filter(k₂)
+    rhs!(k₃, S̃, t, parameters)
+    @. S̃ = S + Δt * k₃
+    momentum_filter(S̃)
+    momentum_filter(k₃)
+    randn!(rng, φ̇)
+    t[1] += Δt / 2
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 1.0, note the factor of two has been accounted for
+    rhs!(k₄, S̃, t, parameters)
+    momentum_filter(k₄)
+    @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+    momentum_filter(S)
+    return nothing
+end
+
 @info "Done with timestepping"
 
 @info "Defining rhs timestepping for shallow water equations"

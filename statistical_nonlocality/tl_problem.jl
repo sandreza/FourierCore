@@ -1,4 +1,4 @@
-using LinearAlgebra, Random, ProgressBars, 
+using LinearAlgebra, Random, ProgressBars
 # GLMakie, Statistics, Random, Distributions
 
 k = 1.0 # wavenumber

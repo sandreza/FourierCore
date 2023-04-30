@@ -2,17 +2,21 @@
 include("lagrangian_eulerian_ensemble.jl")
 
 # lagrangian further ensemble averaging
-skipL = round(Int,decorrelation_index / mod_index)
+skipL = round(Int, decorrelation_index / mod_index)
+skipL = minimum([skipL, length(lagrangian_list)])
 # start_index
-si = Int(maximum([argmax(lagrangian_list) % skipL, skipL]))
+# si = Int(maximum([argmax(lagrangian_list) % skipL, skipL]))
+si = 1
 # end index
 ei = floor(Int, (length(lagrangian_list) - si + 1) / skipL) 
-formatted_lagrangian_list = [lagrangian_list[si+(i-1)*skipL:si+i*skipL-1] for i in 1:ei]
+formatted_lagrangian_list = [lagrangian_list[si+(i-1)*skipL:si+i*skipL-2] for i in 1:ei]
 
 # eulerian further ensemble averaging 
 skip = round(Int,decorrelation_index2 / mod_index)
+skip = minimum([skip, length(lagrangian_list)])
 # start_index
 si = Int(maximum([argmax(eulerian_list) % skip, skip]))
+si = 1
 # end index
 ei = floor(Int, (length(eulerian_list) - si + 1) / skip) 
 formatted_eulerian_list = [eulerian_list[si+(i-1)*skip:si+i*skip-1] for i in 1:ei]

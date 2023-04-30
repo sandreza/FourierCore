@@ -3,10 +3,10 @@ f_amps = [50, 150, 300, 450, 750, 0.1, 1, 10, 0.01]
 ν_hs = [sqrt(1e-3), sqrt(1e-4), sqrt(10^(-2.0))]
 tic = Base.time()
 
-jj = 2
+jj = 1
 ii = 1
 kk = 3
-f_amp = 60  # f_amps[ii]
+f_amp = f_amps[ii]
 ν = νs[jj]
 ν_h = ν_hs[kk]
 
@@ -16,11 +16,11 @@ println("---------------------------------")
 println("Computing case $filename with f_amp = $f_amp, ν = $(ν^2), ν_h = $(ν_h^2)")
 # Initialize the fields, choose domain size
 N = 2^7
-N_ens = 2^0 # 2^7
+N_ens = 2^5 # 2^7
 Ns = (N * 4, N, N_ens)
 
 # initialize constants
-κ = 1e-3
+κ = 1e-3 # 1e-3
 dissipation_power = 2
 hypoviscocity_power = 2
 
@@ -128,8 +128,8 @@ forcing_amplitude = f_amp
 ϵ = 0.0
 ωs = [0.0]
 
-Δt = 2/32 # 8 / N # timestep
-scaleit = 2^5 #  2^9
+Δt = 2 / 32 # 8 / N # timestep
+scaleit = 2^8 #  2^9
 kmax = 25  # filter for forcing
 @info "initializing operators"
 # operators
@@ -153,16 +153,20 @@ bools = (!).(isnan.(Δ⁻¹))
 # filter for forcing 
 # construct waver
 kxmax = maximum(kˣ)
-kymax = maximum(kˣ)
+kymax = maximum(kʸ)
 kxymax = maximum([kxmax, kymax])
 kxmax = kymax = kmax
 waver = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
-waver = @. (kˣ)^2 + (kʸ)^2 ≤ 0.5 *  kxymax^2
+waver = @. (kˣ)^2 + (kʸ)^2 ≤ 0.5 * kxymax^2
+waver .*= @. (kˣ != 0.0) .* (kʸ != 0.0)
 # waver = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ 2 / 3 * kxmax
 # @. waver = waver * (0 * abs(kˣ) .+ 1 * abs(kʸ) ≤ 2 / 3 * kxmax)
 # orig_dom = abs.(kˣ .% 0.5) .< eps(1.0)
 # @. waver = waver * orig_dom
+waver[1, :] .= 1.0
+waver[:, 1] .= 1.0
 waver[1, 1] = 0.0
+
 # waver[:, floor(Int, N / 2)+1] .= 0.0
 # waver[floor(Int, N / 2)+1, :] .= 0.0
 
@@ -293,7 +297,7 @@ rng = MersenneTwister(1234)
 Random.seed!(123456789)
 
 maxind = minimum([40 * 4, floor(Int, Ns[1] / 4)])
-index_choices = 2:2 # 2:maxind
+index_choices = 2:maxind # 2:maxind
 
 start_index = floor(Int, tstart / Δt)
 
@@ -352,7 +356,7 @@ end
 
 tmp = Array(real.(fft(mean(θ̄, dims=(2, 3))[:]))) # tmp = real.(fft(Array(mean(θ[:,:,1:10], dims = (2,3)))[:]))
 kxa = Array(kˣ)[:]
-effective_diffusivities = ((Ns[1] / 2) ./ tmp) ./ (kxa .^ 2) .- κ 
+effective_diffusivities = ((Ns[1] / 2) ./ tmp) ./ (kxa .^ 2) .- κ
 effective_diffusivities = effective_diffusivities[index_choices]
 
 # estimate kernel on grid
@@ -368,7 +372,7 @@ fid["kernel"] = kernel
 fid["ensemble mean in fourier space from diffusivity calculation"] = tmp
 close(fid)
 ##
-using GLMakie 
+using GLMakie
 scatter(effective_diffusivities)
 #=
 P * ψ;

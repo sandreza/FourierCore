@@ -10,7 +10,6 @@ f_amp = f_amps[ii]
 ν = νs[jj]
 ν_h = ν_hs[kk]
 
-
 filename = "larger_domain_case_filter_" * string(ii) * "_" * string(jj) * "_" * string(kk)
 println("---------------------------------")
 println("Computing case $filename with f_amp = $f_amp, ν = $(ν^2), ν_h = $(ν_h^2)")
@@ -130,7 +129,6 @@ forcing_amplitude = f_amp
 
 Δt = 2 / 32 # 8 / N # timestep
 scaleit = 2^8 #  2^9
-kmax = 25  # filter for forcing
 @info "initializing operators"
 # operators
 ∂x = im * kˣ
@@ -155,14 +153,8 @@ bools = (!).(isnan.(Δ⁻¹))
 kxmax = maximum(kˣ)
 kymax = maximum(kʸ)
 kxymax = maximum([kxmax, kymax])
-kxmax = kymax = kmax
-waver = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
 waver = @. (kˣ)^2 + (kʸ)^2 ≤ 0.5 * kxymax^2
 waver .*= @. (kˣ != 0.0) .* (kʸ != 0.0)
-# waver = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ 2 / 3 * kxmax
-# @. waver = waver * (0 * abs(kˣ) .+ 1 * abs(kʸ) ≤ 2 / 3 * kxmax)
-# orig_dom = abs.(kˣ .% 0.5) .< eps(1.0)
-# @. waver = waver * orig_dom
 waver[1, :] .= 1.0
 waver[:, 1] .= 1.0
 waver[1, 1] = 0.0
@@ -249,8 +241,8 @@ formatted_eulerian_list = [eulerian_list[si+(i-1)*skip:si+i*skip-1] for i in 1:e
 directory = "/storage5/NonlocalPassiveTracers/Current/"
 fid = h5open(directory * filename * ".hdf5", "w")
 fid["forcing amplitude"] = f_amp
-fid["Nx"] = N
-fid["Ny"] = N
+fid["Nx"] = Ns[1]
+fid["Ny"] = Ns[2]
 fid["Nensemble"] = N_ens
 fid["nu"] = ν^dissipation_power
 fid["nu harmonic power"] = dissipation_power
@@ -269,6 +261,7 @@ fid["times output decorrelation case"] = tlist
 fid["domain size x"] = Ω[1].b - Ω[1].a
 fid["domain size y"] = Ω[2].b - Ω[2].a
 fid["dt"] = Δt
+fid["forcing filter"] = Array(waver)[:, :, 1]
 close(fid)
 
 @show "done initializing ensembles"
@@ -375,6 +368,7 @@ close(fid)
 using GLMakie
 scatter(effective_diffusivities)
 #=
+load_psi!(ψ; filename=filename) # was defined in the initalize fields file
 P * ψ;
 ζ .= Δ .* ψ;
 P⁻¹ * ζ; # initalize stream function and vorticity
@@ -409,7 +403,7 @@ push!(ke_list, real(mean(u .* u + v .* v)))
 push!(tlist, t[1])
 t .= 0.0
 for i = iter
-    step_filter!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
+    step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
     push!(uθ_list, real(mean(θ .* u)))
     push!(tlist, t[1])
     if i % mod_index == 0
@@ -436,5 +430,5 @@ fid = h5open(directory * filename * ".hdf5", "r+")
 fid["large scale effective diffusivity (with time evolution)"] = uθ_list
 fid["large scale effective diffusivity times"] = tlist
 large_scale = mean(uθ_list[start_index:end])
-fid["large scale effective diffusivity"] = large_
+fid["large scale effective diffusivity"] = large_scale
 =#

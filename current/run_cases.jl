@@ -1,7 +1,12 @@
 f_amps = [50, 150, 300, 450, 750, 0.1, 1, 10, 0.01]
 νs = [sqrt(1e-5 / 2)]
-ν_hs = [sqrt(1e-3), sqrt(1e-4), sqrt(1e-1)]
+ν_hs = [sqrt(1e-3), sqrt(1e-4), sqrt(1e-2)]
 tic = Base.time()
+
+base_name = "case_"
+N = 2^7
+N_ens = 2^5 # 2^7
+Ns = (N, N, N_ens)
 
 jj = 1
 ii = 8

@@ -54,6 +54,7 @@ fid["times output decorrelation case"] = tlist
 fid["domain size x"] = Ω[1].b - Ω[1].a
 fid["domain size y"] = Ω[2].b - Ω[2].a
 fid["dt"] = Δt
+fid["phase speed"] = phase_speed
 close(fid)
 
 @show "done initializing ensembles"

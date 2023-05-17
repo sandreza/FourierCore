@@ -289,7 +289,6 @@ for i = ProgressBar(1:iend)
 
 end
 
-
 tmp = real.(Array(mean(θs)))
 tmpsi = mean(ψs)
 P * tmpsi

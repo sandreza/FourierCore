@@ -12,7 +12,7 @@ tstart = 2^5 * scaleit
 tend = 2^6 * scaleit
 defined outside script 
 =#
-maxind = minimum([40, floor(Int, N[1] / 2)])
+maxind = minimum([40, floor(Int, Ns[1] / 2)])
 index_choices = 2:maxind
 #=
 forcing_amplitude = 300.0

@@ -1,6 +1,6 @@
 using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, HDF5, ProgressBars
-using GLMakie
+# using GLMakie
 using Statistics
 
 # NOTE ALIASING BUG FIXED ∂x[N/2] = 0
@@ -21,7 +21,7 @@ arraytype = CuArray
 N = 2^7
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
-forcing_amplitude = 400.0 *  (N / 2^7)^2 # due to FFT nonsense
+forcing_amplitude = 300.0 *  (N / 2^7)^2 # due to FFT nonsense
 
 x = nodes[1]
 y = nodes[2]
@@ -129,7 +129,7 @@ P⁻¹ = plan_ifft!(ψ)
 
 ##
 Δx = x[2] - x[1]
-Δt = 1/N # 1 / N # 2^(-10)# 2 / N # Δx / (2π) * 1.0
+Δt = 4/N # 1 / N # 2^(-10)# 2 / N # Δx / (2π) * 1.0
 κ = 1e-3 # 1.0 * Δx^2
 ν = sqrt(1e-6) # 0.5 * Δx^2
 ν_h = sqrt(1e-3) # 0.001
@@ -160,7 +160,7 @@ tic = Base.time()
 
 t = [0.0]
 
-phase_speed = sqrt(1.0) # 1.0
+phase_speed = sqrt(2.0) # 1.0
 
 iend = ceil(Int, tend / Δt)
 

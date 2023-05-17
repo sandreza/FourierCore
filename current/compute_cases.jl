@@ -14,18 +14,18 @@ dissipation_power = 2
 # ν_h = sqrt(1e-3) # raised to the hypoviscocity_power 
 hypoviscocity_power = 2
 
-forcing_amplitude = f_amp * (N / 2^7)^2 # due to FFT nonsense [check if this is true]
+forcing_amplitude = f_amp * (Ns[1] / 2^7)^2 # due to FFT nonsense [check if this is true]
 ϵ = 0.0    # large scale parameter, 0 means off, 1 means on
 ωs = [0.0]    # frequency, 0 means no time dependence
 if f_amp > 10
     Δt = 1 / 2N # timestep
-    scaleit = 2^4
+    scaleit = 2^4 # 2^4 * 2
 elseif 1 < f_amp < 10 + 1
     Δt = 1 / N # timestep
     scaleit = 2^5
 elseif 0.1 < f_amp < 1 + 1
     Δt = 4 / N  # timestep
-    scaleit = 2^5 * 4 * 2
+    scaleit = 2^7
 elseif 0.05 < f_amp < 0.2
     κ = 1e-4
     Δt = 16 / N # timestep
@@ -80,6 +80,7 @@ include("diffusivity_kernel.jl") # tracer is initialized in here
 fid = h5open(directory * filename * ".hdf5", "r+")
 fid["diffusivity kernel fourier"] = effective_diffusivities
 fid["kernel"] = kernel
+fid["kinetic energy evolution during kernel calculation"] = ke_list
 close(fid)
 
 ## Large scale case 

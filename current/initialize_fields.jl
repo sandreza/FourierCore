@@ -11,7 +11,7 @@ are defined outside this script
 rng = MersenneTwister(12345)
 Random.seed!(12)
 
-phase_speed = 5.0
+phase_speed = 1.0
 
 Ω = S¹(4π)^2 × S¹(1)
 grid = FourierGrid(Ns, Ω, arraytype=arraytype)

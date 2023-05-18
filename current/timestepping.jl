@@ -92,6 +92,34 @@ function step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters
     return nothing
 end
 
+function step_perturbation!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
+    compute_perturbation_source!(parameters)
+    rhs!(k₁, S, t, parameters)
+    @. S̃ = S + Δt * k₁ * 0.5
+    randn!(rng, φ̇)
+    t[1] += Δt / 2
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 0.5, note the factor of two has been accounted for
+    compute_perturbation_source!(parameters)
+    rhs!(k₂, S̃, t, parameters)
+    @. S̃ = S + Δt * k₂ * 0.5
+    compute_perturbation_source!(parameters)
+    rhs!(k₃, S̃, t, parameters)
+    @. S̃ = S + Δt * k₃
+    randn!(rng, φ̇)
+    t[1] += Δt / 2
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 1.0, note the factor of two has been accounted for
+    compute_perturbation_source!(parameters)
+    rhs!(k₄, S̃, t, parameters)
+    @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+    return nothing
+end
+
+function compute_perturbation_source!(parameters) 
+    (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ, s¹) = parameters.auxiliary
+    flux_div = mean(u .* ∂ˣθ .+ v .* ∂ʸθ, dims = 3) .-  mean(u, dims=3) .* mean(∂ˣθ, dims = 3) .- mean(v, dims=3) .* mean(∂ʸθ, dims = 3)
+    sθ .= -flux_div .+ u .* s¹
+end
+
 function step_filter!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
     rhs!(k₁, S, t, parameters)
     @. S̃ = S + Δt * k₁ * 0.5

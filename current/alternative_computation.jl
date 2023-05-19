@@ -15,7 +15,7 @@ println("---------------------------------")
 println("Computing case $filename with f_amp = $f_amp, ν = $(ν^2), ν_h = $(ν_h^2)")
 # Initialize the fields, choose domain size
 N = 2^7
-N_ens = 2^2 # 2^7
+N_ens = 2^7 # 2^7
 Ns = (N, N, N_ens)
 
 # initialize constants
@@ -129,7 +129,7 @@ forcing_amplitude = f_amp
 ωs = [0.0]
 
 Δt = 1 / N # 8 / N # timestep
-scaleit = 2^3 #  2^9
+scaleit = 2^3 * 4 #  2^9
 @info "initializing operators"
 # operators
 ∂x = im * kˣ
@@ -326,6 +326,7 @@ rand!(rng, φ) # between 0, 1
 φ .*= 2π # to make it a random phase
 
 θ̄ = arraytype(zeros(ComplexF64, Ns[1], Ns[2], N_ens))
+uθ_bar = arraytype(zeros(ComplexF64, Ns[1], Ns[2], N_ens))
 
 iter = ProgressBar(1:iend)
 ke_list = Float64[]
@@ -340,6 +341,7 @@ for i = iter
     end
     if i > start_index
         θ̄ .+= Δt .* θ
+        uθ_bar .+= Δt .* uθ
     end
     if i % mod_index == 0
         push!(ke_list, real(mean(u .* u + v .* v)))
@@ -353,6 +355,7 @@ for i = iter
 end
 
 θ̄ ./= (tend - tstart)
+uθ_bar ./= (tend - tstart)
 θ̄_A = Array(real.(θ̄))
 
 #=
@@ -360,7 +363,7 @@ tmp = Array(real.(fft(mean(θ̄, dims=(2, 3))[:]))) # tmp = real.(fft(Array(mean
 kxa = Array(kˣ)[:]
 effective_diffusivities = ((Ns[1] / 2) ./ tmp) ./ (kxa .^ 2) .- κ
 =#
-fluxes = real.(fft(Array(real.(mean(ifft(mean(uθ, dims = 3)), dims = 2)))[:]))
+fluxes = real.(fft(Array(real.(mean(ifft(mean(uθ_bar, dims=3)), dims=2)))[:]))
 gradients = -real.(Array(fft(mean(s¹, dims = (2,3)))))[:]
 effective_diffusivities = (fluxes ./ gradients)[index_choices]
 

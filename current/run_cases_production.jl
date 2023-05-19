@@ -1,4 +1,4 @@
-f_amps = [1, 10, 50, 300, 750] # [750, 300, 50, 10, 1]
+f_amps = [1, 10, 50, 300, 750, 0.1, 50, 150, 450] # [750, 300, 50, 10, 1] # [50, 150, 300, 450, 750, 0.1, 1, 10, 0.01]
 νs = [sqrt(1e-5 / 2)]
 ν_hs = [sqrt(1e-3), sqrt(1e-4), sqrt(1e-2)]
 tic = Base.time()
@@ -30,7 +30,7 @@ toc = Base.time()
 println("Elapsed time: ", (toc - tic) / (60 * 60), " hours")
 =#
 
-ii = 3
+ii = 6
 jj = 1
 kk = 1
 f_amp = f_amps[ii]
@@ -41,7 +41,7 @@ toc = Base.time()
 println("Elapsed time: ", (toc - tic) / (60 * 60), " hours")
 
 
-ii = 2
+ii = 7
 jj = 1
 kk = 1
 f_amp = f_amps[ii]
@@ -51,7 +51,17 @@ include("compute_cases.jl")
 toc = Base.time()
 println("Elapsed time: ", (toc - tic) / (60 * 60), " hours")
 
-ii = 5
+ii = 8
+jj = 1
+kk = 1
+f_amp = f_amps[ii]
+ν = νs[jj]
+ν_h = ν_hs[kk]
+include("compute_cases.jl")
+toc = Base.time()
+println("Elapsed time: ", (toc - tic) / (60 * 60), " hours")
+
+ii = 9
 jj = 1
 kk = 1
 f_amp = f_amps[ii]

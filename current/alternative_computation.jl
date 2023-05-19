@@ -128,7 +128,7 @@ forcing_amplitude = f_amp
 ϵ = 0.0
 ωs = [0.0]
 
-Δt = 1 / 2N # 8 / N # timestep
+Δt = 1 / N # 8 / N # timestep
 scaleit = 2^3 #  2^9
 @info "initializing operators"
 # operators
@@ -185,7 +185,7 @@ ke_list = Float64[]
 tlist = Float64[]
 t = [0.0]
 
-index_choices = 2:maxind # 2:maxind
+index_choices = 1:maxind # 2:maxind
 sθ .= 0.0
 θ .= 0
 ζ .= 0
@@ -355,11 +355,14 @@ end
 θ̄ ./= (tend - tstart)
 θ̄_A = Array(real.(θ̄))
 
-
+#=
 tmp = Array(real.(fft(mean(θ̄, dims=(2, 3))[:]))) # tmp = real.(fft(Array(mean(θ[:,:,1:10], dims = (2,3)))[:]))
 kxa = Array(kˣ)[:]
 effective_diffusivities = ((Ns[1] / 2) ./ tmp) ./ (kxa .^ 2) .- κ
-effective_diffusivities = effective_diffusivities[index_choices]
+=#
+fluxes = real.(fft(Array(real.(mean(ifft(mean(uθ, dims = 3)), dims = 2)))[:]))
+gradients = -real.(Array(fft(mean(s¹, dims = (2,3)))))[:]
+effective_diffusivities = (fluxes ./ gradients)[index_choices]
 
 # estimate kernel on grid
 kernel = real.(fft([0.0, effective_diffusivities..., zeros(65)..., reverse(effective_diffusivities)...]))

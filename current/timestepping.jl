@@ -94,20 +94,24 @@ end
 
 function step_perturbation!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
     rhs!(k₁, S, t, parameters)
+    compute_perturbation_source!(parameters)
     @. S̃ = S + Δt * k₁ * 0.5
     randn!(rng, φ̇)
     t[1] += Δt / 2
     @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 0.5, note the factor of two has been accounted for
+    compute_perturbation_source!(parameters)
     rhs!(k₂, S̃, t, parameters)
     @. S̃ = S + Δt * k₂ * 0.5
+    compute_perturbation_source!(parameters)
     rhs!(k₃, S̃, t, parameters)
     @. S̃ = S + Δt * k₃
     randn!(rng, φ̇)
     t[1] += Δt / 2
     @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 1.0, note the factor of two has been accounted for
+    compute_perturbation_source!(parameters)
     rhs!(k₄, S̃, t, parameters)
     @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
-    compute_perturbation_source!(parameters)
+    # compute_perturbation_source!(parameters)
     return nothing
 end
 

@@ -67,7 +67,7 @@ end
 θ̄ ./= (tend - tstart)
 θ̄_A = Array(real.(θ̄))
 
-
+tmpsave = Array(real.(mean(θ̄, dims=2)))[:, 1, :]
 tmp = Array(real.(fft(mean(θ̄, dims=(2, 3))[:]))) # tmp = real.(fft(Array(mean(θ[:,:,1:10], dims = (2,3)))[:]))
 kxa = Array(kˣ)[:]
 effective_diffusivities = ((Ns[1] / 2) ./ tmp) ./ (kxa .^ 2) .- κ # (((N[1] / 2) ./ tmp) .- λ) ./ (kxa .^ 2) .- κ

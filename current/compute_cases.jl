@@ -8,7 +8,7 @@ println("Computing case $filename with f_amp = $f_amp, ν = $(ν^2), ν_h = $(ν
 include("initialize_fields.jl") # allocates memory for efficiency, defines stream function vorticity etc.
 
 # initialize constants
-κ = 1e-3 # 1e-3 # diffusivity for scalar: OVERWRITTEN JUST BELOW
+κ = 1e-3 # 1e-3 # diffusivity for scalar: OVERWRITTEN JUST BELOW for f_amp < 0.2
 # ν = sqrt(1e-5 / 2) # raised to the dissipation power
 dissipation_power = 2
 # ν_h = sqrt(1e-3) # raised to the hypoviscocity_power 
@@ -27,11 +27,11 @@ elseif 0.1 < f_amp < 1 + 1
     Δt = 4 / N  # timestep
     scaleit = 2^7
 elseif 0.05 < f_amp < 0.2
-    κ = 1e-4
+    # κ = 1e-4
     Δt = 16 / N # timestep
     scaleit = 2^5 * 2^2 * 2^2
 elseif f_amp < 0.05
-    κ = 1e-4
+    # κ = 1e-4
     Δt = 16 / N # timestep
     scaleit = 2^5 * 4 * 4
 else
@@ -57,6 +57,7 @@ constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ωs=ωs)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 include("initialize_ensembles.jl")
 
+
 ## Compute effective diffusivities
 # start gathering statistics at tstart and the simulation at tend
 # 2^8 is 256
@@ -80,6 +81,7 @@ include("diffusivity_kernel.jl") # tracer is initialized in here
 fid = h5open(directory * filename * ".hdf5", "r+")
 fid["diffusivity kernel fourier"] = effective_diffusivities
 fid["kernel"] = kernel
+fid["temporal mean and y spatial mean of tracer"] = tmpsave
 fid["kinetic energy evolution during kernel calculation"] = ke_list
 close(fid)
 
@@ -100,6 +102,7 @@ P⁻¹ * ζ; # initalize stream function and vorticity
 ωs = [0.0]    # frequency, 0 means no time dependence
 
 # need to change the parameters and constants every time
+
 constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ωs=ωs)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 include("large_scale.jl")
@@ -110,15 +113,16 @@ large_scale = mean(uθ_list[start_index:end])
 fid["large scale effective diffusivity"] = large_scale
 close(fid)
 
-#=
+
 ## Large scale time dependent case
-scaleit = 2^3
+
+# scaleit = 2^3
 tstart = 2^5 * scaleit
 tend = 2^6 * scaleit
-load_psi!(ψ; filename=filename) # was defined in the initalize fields file
-P * ψ;
-ζ .= Δ .* ψ;
-P⁻¹ * ζ; # initalize stream function and vorticity
+# load_psi!(ψ; filename=filename) # was defined in the initalize fields file
+# P * ψ;
+# ζ .= Δ .* ψ;
+# P⁻¹ * ζ; # initalize stream function and vorticity
 ϵ = 1.0    # large scale parameter, 0 means off, 1 means on
 Ts = [2^i for i in [0, 1, 2, 3, 4, 5, 6, 7]]    # power of two for convience
 ωs = [2π/T for T in Ts]   # frequency, 0 means no time dependence
@@ -134,7 +138,7 @@ fid["time dependent large scale effective diffusivity times"] = tlist
 fid["time dependent large scale angular frequencies"] = ωs
 fid["time dependent large scale periods"] = Ts
 close(fid)
-=#
+
 
 # end
 # end

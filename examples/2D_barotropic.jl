@@ -16,7 +16,7 @@ include("random_phase_kernel.jl")
 # using GLMakie
 
 using CUDA
-arraytype = CuArray
+arraytype = Array
 Ω = S¹(4π)^2
 N = 2^7
 grid = FourierGrid(N, Ω, arraytype=arraytype)

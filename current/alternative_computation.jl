@@ -10,7 +10,7 @@ f_amp = f_amps[ii]
 ν = νs[jj]
 ν_h = ν_hs[kk]
 
-filename = "alternative_computation_" * string(ii) * "_" * string(jj) * "_" * string(kk)
+filename = "alternative_computation_3_" * string(ii) * "_" * string(jj) * "_" * string(kk)
 println("---------------------------------")
 println("Computing case $filename with f_amp = $f_amp, ν = $(ν^2), ν_h = $(ν_h^2)")
 # Initialize the fields, choose domain size
@@ -128,8 +128,8 @@ forcing_amplitude = f_amp
 ϵ = 0.0
 ωs = [0.0]
 
-Δt = 1 / N # 8 / N # timestep
-scaleit = 2^3 * 4 #  2^9
+Δt = 1 / 2N # 8 / N # timestep
+scaleit = 2^3 * 2 #  2^9
 @info "initializing operators"
 # operators
 ∂x = im * kˣ
@@ -297,7 +297,7 @@ using ProgressBars
 rng = MersenneTwister(1234)
 Random.seed!(123456789)
 
-maxind = minimum([40 , floor(Int, Ns[1] / 4)])
+maxind = minimum([40 , floor(Int, Ns[1] / 2)])
 index_choices = 1:maxind # 2:maxind
 
 start_index = floor(Int, tstart / Δt)

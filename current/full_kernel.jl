@@ -304,12 +304,26 @@ fid["time dependent wavenumber indices to trust"] = collect(index_choices)
 
 close(fid)
 ##
+using GLMakie
 wn = Array(kˣ)[:]
 fig = Figure()
-ax = Axis(fig[1,1])
+ax = Axis(fig[1,1]; title = "real part", xlabel = "wavenumber")
 for i in 1:7
-    lines!(ax, wn[index_choices], -real.(flux_gradient_fourier[index_choices, i]), label = string(Ts[i]))
+    lines!(ax, wn[index_choices], -real.(flux_gradient_fourier[index_choices, i]), label = string("T = ") * string(reverse(Ts)[i]))
 end
-ax.legend = true
+axislegend(ax, position=:rt, framecolor=(:grey, 0.5), patchsize=(30, 30), markersize=50, labelsize=20)
+ax = Axis(fig[1,2]; title = "imaginary part", xlabel = "wavenumber")
+for i in 1:7
+    lines!(ax, wn[index_choices], imag.(flux_gradient_fourier[index_choices, i]), label = string("T = ") * string(reverse(Ts)[i]))
+end
 
-axislegend(ax, position=:rt, framecolor=(:grey, 0.5), patchsize=(50, 50), markersize=100, labelsize=40)
+ax = Axis(fig[2,1]; title = "modulus", xlabel = "wavenumber")
+for i in 1:7
+    lines!(ax, wn[index_choices], abs.(flux_gradient_fourier[index_choices, i]), label = string("T = ") * string(reverse(Ts)[i]))
+end
+ax = Axis(fig[2,2]; title = "phase", xlabel = "wavenumber", ylabel = "radians")
+for i in 1:7
+    lines!(ax, wn[index_choices], abs.(angle.(-flux_gradient_fourier[index_choices, i])), label = string("T = ") * string(reverse(Ts)[i]))
+end
+
+display(fig)

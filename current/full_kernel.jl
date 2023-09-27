@@ -4,14 +4,14 @@ f_amps = [50, 150, 300, 450, 750, 0.1, 1, 10, 0.01]
 ν_hs = [sqrt(1e-3), sqrt(1e-4), sqrt(1e-2)]
 tic = Base.time()
 
-base_name = "even_higher_frequency_general_case_"
+base_name = "much_higher_frequency_general_case_"
 N = 2^7
 N_ens = 2^7 # 2^7
 Ns = (N, N, N_ens)
 
-ii = 3 # forcing
+ii = 4 # forcing
+kk = 2 # hypo
 jj = 1 # hyper
-kk = 1 # hypo
 f_amp = f_amps[ii]
 ν = νs[jj]
 ν_h = ν_hs[kk]
@@ -188,7 +188,7 @@ tend = 2^6 * scaleit
 ϵ = 1.0    # large scale parameter, 0 means off, 1 means on
 # Ts = [2^i for i in [0, 1, 2, 3, 4, 5, 6, 7]]    # power of two for convience
 # ωs = [2π / T for T in Ts]   # frequency, 0 means no time dependence
-factor = 16 * 8
+factor = 16 * 8 * 4
 indices = collect(0:128) * factor # need to do look at a shorter time interval and then average the different ffts
 ωs = (2π / tend) * indices
 Ts = 2π ./ ωs

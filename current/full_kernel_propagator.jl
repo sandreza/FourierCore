@@ -69,6 +69,8 @@ load_psi!(ψ; filename=filename) # was defined in the initalize fields file
 P * ψ;
 ζ .= Δ .* ψ;
 P⁻¹ * ζ; # initalize stream function and vorticity
+ϵ = 0.0    # large scale parameter, 0 means off, 1 means on
+ωs = [0.0]
 constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ωs=ωs)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 
@@ -89,7 +91,7 @@ for kk in ProgressBar(1:numloops)
     θ[1, :, : ] .= u[1, : , : ]
     rhs!(Ṡ, S, t, parameters)
     @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
-    sθ .= -sum(sθ, dims = 3)
+    sθ .= -mean(sθ, dims = 3)
     θ .= 0
     θ[1, :, : ] .= real.(u[1, : , : ])
 
@@ -101,4 +103,8 @@ for kk in ProgressBar(1:numloops)
     end
 end
 
+
+fid["space time kernel"] = kernel
+fid["space time kernel timelist"] = collect(0:iend-1) * Δt
 #  tmplist = [maximum(abs.(kernel[:, i])) for i in 1:iend]
+# [mean(abs.(kernel[:, i])) for i in 1:iend]

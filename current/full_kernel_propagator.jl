@@ -3,9 +3,9 @@ f_amps = [50, 150, 300, 450, 750, 0.1, 1, 10, 0.01]
 ν_hs = [sqrt(1e-3), sqrt(1e-4), sqrt(1e-2)]
 tic = Base.time()
 
-base_name = "propagator_"
+base_name = "full_propagator_"
 N = 2^7
-N_ens = 2^3 # 2^7
+N_ens = 2^7 # 2^7
 Ns = (N, N, N_ens)
 
 ii = 3 # forcing
@@ -83,7 +83,7 @@ tend = 10
 iend = ceil(Int, tend / Δt)
 kernel = zeros(N, iend)
 
-numloops = 10
+numloops = 100
 for kk in ProgressBar(1:numloops)
     rhs!(Ṡ, S, t, parameters) # to calculate u
     t = [0.0]
@@ -104,6 +104,7 @@ for kk in ProgressBar(1:numloops)
 end
 
 
+fid = h5open(directory * filename * ".hdf5", "r+")
 fid["space time kernel"] = kernel
 fid["space time kernel timelist"] = collect(0:iend-1) * Δt
 #  tmplist = [maximum(abs.(kernel[:, i])) for i in 1:iend]

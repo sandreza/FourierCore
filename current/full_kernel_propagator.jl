@@ -85,8 +85,8 @@ kernel = zeros(N, iend)
 
 numloops = 100
 for kk in ProgressBar(1:numloops)
-    rhs!(Ṡ, S, t, parameters) # to calculate u
     t = [0.0]
+    rhs!(Ṡ, S, t, parameters) # to calculate u
     θ .= 0
     θ[1, :, : ] .= u[1, : , : ]
     rhs!(Ṡ, S, t, parameters)
@@ -94,7 +94,7 @@ for kk in ProgressBar(1:numloops)
     sθ .= -mean(sθ, dims = 3)
     θ .= 0
     θ[1, :, : ] .= real.(u[1, : , : ])
-
+    t = [0.0]
     for i in ProgressBar(1:iend )
         kernel[:, i] .+= circshift(Array(real.(mean(u .* θ, dims = (2, 3)))), 64) / numloops
         step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
@@ -107,5 +107,6 @@ end
 fid = h5open(directory * filename * ".hdf5", "r+")
 fid["space time kernel"] = kernel
 fid["space time kernel timelist"] = collect(0:iend-1) * Δt
+close(fid)
 #  tmplist = [maximum(abs.(kernel[:, i])) for i in 1:iend]
 # [mean(abs.(kernel[:, i])) for i in 1:iend]

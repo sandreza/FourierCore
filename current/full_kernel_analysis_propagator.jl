@@ -6,7 +6,6 @@ ii = 3 # forcing
 kk = 1 # hypo
 jj = 1 # hyper
 filename = base_name * string(ii) * "_" * string(jj) * "_" * string(kk)
-ts = collect(0:iend-1) * Δt
 
 fid = h5open(directory * filename * ".hdf5", "r")
 𝒦 = read(fid["space time kernel"])

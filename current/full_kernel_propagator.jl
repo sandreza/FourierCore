@@ -5,7 +5,7 @@ tic = Base.time()
 
 base_name = "full_propagator_"
 N = 2^7
-N_ens = 2^7 # 2^7
+N_ens = 2^9 # 2^7
 Ns = (N, N, N_ens)
 
 ii = 3 # forcing
@@ -59,7 +59,40 @@ constants = (; forcing_amplitude=forcing_amplitude, ϵ=ϵ, ωs=ωs)
 parameters = (; auxiliary, operators, constants) # auxiliary was defined in initialize_fields.jl
 include("initialize_ensembles.jl")
 
+##
+function step_2!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
+    (; ψ, x, y, φ, u, v, uζ, vζ, uθ, vθ, ∂ˣζ, ∂ʸζ, ∂ˣθ, ∂ʸθ, ∂ˣuζ, ∂ʸvζ, ∂ˣuθ, ∂ʸvθ, 𝒟θ, 𝒟ζ, sθ, sζ) = parameters.auxiliary
+    @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
+    sθ .= -mean(sθ, dims = 3)
 
+    rhs!(k₁, S, t, parameters)
+    @. S̃ = S + Δt * k₁ * 0.5
+    randn!(rng, φ̇)
+    t[1] += Δt / 2
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 0.5, note the factor of two has been accounted for
+
+    @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
+    sθ .= -mean(sθ, dims = 3)
+
+    rhs!(k₂, S̃, t, parameters)
+    @. S̃ = S + Δt * k₂ * 0.5
+
+    @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
+    sθ .= -mean(sθ, dims = 3)
+
+    rhs!(k₃, S̃, t, parameters)
+    @. S̃ = S + Δt * k₃
+    randn!(rng, φ̇)
+    t[1] += Δt / 2
+    @. φ += phase_speed * sqrt(Δt / 2 * 2) * φ̇ # now at t = 1.0, note the factor of two has been accounted for
+
+    @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
+    sθ .= -mean(sθ, dims = 3)
+
+    rhs!(k₄, S̃, t, parameters)
+    @. S += Δt / 6 * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+    return nothing
+end
 ## Compute effective diffusivities
 # start gathering statistics at tstart and the simulation at tend
 # 2^8 is 256
@@ -79,7 +112,7 @@ parameters = (; auxiliary, operators, constants) # auxiliary was defined in init
 # set initial condition to u(x = 0, y) δ(x), e.g. u[1, :, :]
 # Initialize ensemble and get initial conditions
 
-tend = 10
+tend = 5
 iend = ceil(Int, tend / Δt)
 kernel = zeros(N, iend)
 
@@ -95,9 +128,9 @@ for kk in ProgressBar(1:numloops)
     θ .= 0
     θ[1, :, : ] .= real.(u[1, : , : ])
     t = [0.0]
-    for i in ProgressBar(1:iend )
+    for i in ProgressBar(1:iend)
         kernel[:, i] .+= circshift(Array(real.(mean(u .* θ, dims = (2, 3)))), 64) / numloops
-        step!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
+        step_2!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
         @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
         sθ .= -mean(sθ, dims = 3)
     end

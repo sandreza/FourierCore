@@ -183,3 +183,37 @@ fid = h5open(directory * filename * ".hdf5", "r+")
 fid["regularized space time kernel"] = kernel
 fid["regularized space time kernel timelist"] = collect(0:iend-1) * Δt
 close(fid)
+
+##
+
+δᴿ = @. exp(-(x-2π)^2 /(2π)^2 * 2000)
+δᴿ ./= sum(δᴿ)
+
+
+tend = 10
+iend = ceil(Int, tend / Δt)
+kernel = zeros(N, iend)
+
+numloops = 100
+for kk in ProgressBar(1:numloops)
+    t = [0.0]
+    rhs!(Ṡ, S, t, parameters) # to calculate u
+    θ .= real.(u) .* δᴿ
+    rhs!(Ṡ, S, t, parameters)
+    @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
+    sθ .= -mean(sθ, dims = 3)
+    θ .= real.(u) .* δᴿ
+    t = [0.0]
+    for i in ProgressBar(1:iend)
+        kernel[:, i] .+= Array(real.(mean(u .* θ, dims = (2, 3))))/ numloops
+        step_2!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
+        @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
+        sθ .= -mean(sθ, dims = 3)
+    end
+end
+
+fid = h5open(directory * filename * ".hdf5", "r+")
+fid["more regularized space time kernel"] = kernel
+fid["more regularized space time kernel timelist"] = collect(0:iend-1) * Δt
+close(fid)
+

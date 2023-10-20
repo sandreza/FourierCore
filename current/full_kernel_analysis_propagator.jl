@@ -2,13 +2,14 @@ using GLMakie, HDF5
 
 directory = "/storage5/NonlocalPassiveTracers/Current/"
 base_name = "full_propagator_"
+base_name = "ens_full_propagator_reguralized_"
 ii = 3 # forcing
 kk = 1 # hypo
 jj = 1 # hyper
 filename = base_name * string(ii) * "_" * string(jj) * "_" * string(kk)
 
 fid = h5open(directory * filename * ".hdf5", "r")
-𝒦 = read(fid["space time kernel"])
+𝒦 = read(fid["regularized space time kernel"]) #  read(fid["space time kernel"])
 ts = read(fid["space time kernel timelist"])
 close(fid)
 
@@ -30,13 +31,14 @@ ax12 = Axis(fig[1,2]; title = "∫dt' kernel", xlabel = "x")
 scatter!(ax12, xs, sum(𝒦, dims =2)[:] * Δt)
 
 ax21 = Axis(fig[2,1]; title = "space time kernel", ylabel = "time", xlabel = "space")
-heatmap!(ax21, xs, ts[128+1:1024+1], 𝒦[:, 128+1:1024+1])
+heatmap!(ax21, xs, ts[1+1:1024+1], 𝒦[:, 1+1:1024+1])
 
 ax22 = Axis(fig[2,2]; title = "kernel peak as a function of time", ylabel = "peak", xlabel = "time")
 scatter!(ax22, ts[1:1024+1], [maximum(𝒦[:, i]) for i in 1:1024+1], label = "peak")
 display(fig)
 
 ##
+#=
 r𝒦 = (𝒦[1:2:end, :] + 𝒦[2:2:end, :])/2
 
 tindlist = [1, 64+1, 128+1, 192+1, 256+1]# [128+1, 256+1, 512+1, 768+1, 1024+1]
@@ -56,8 +58,9 @@ ax12 = Axis(fig[1,2]; title = "∫dt' kernel", xlabel = "x")
 scatter!(ax12, rxs, sum(r𝒦, dims =2)[:] * Δt)
 
 ax21 = Axis(fig[2,1]; title = "space time kernel", ylabel = "time", xlabel = "space")
-heatmap!(ax21, rxs, ts[128+1:1024+1], r𝒦[:, 128+1:1024+1])
+heatmap!(ax21, rxs, ts[1:1024+1], r𝒦[:, 1:1024+1])
 
 ax22 = Axis(fig[2,2]; title = "kernel peak as a function of time", ylabel = "peak", xlabel = "time")
 scatter!(ax22, ts[1:1024+1], [maximum(r𝒦[:, i]) for i in 1:1024+1], label = "peak")
 display(fig)
+=#

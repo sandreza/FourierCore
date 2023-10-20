@@ -2,13 +2,14 @@ using GLMakie, HDF5
 
 # Grab propagator version
 directory = "/storage5/NonlocalPassiveTracers/Current/"
-base_name = "full_propagator_"
+base_name = "ens_full_propagator_reguralized_" # "full_propagator_"
 ii = 3 # forcing
 kk = 1 # hypo
 jj = 1 # hyper
 filename = base_name * string(ii) * "_" * string(jj) * "_" * string(kk)
 fid = h5open(directory * filename * ".hdf5", "r")
-𝒦 = read(fid["space time kernel"])
+𝒦 = read(fid["regularized space time kernel"])# read(fid["space time kernel"])
+scale = abs.(fft(𝒦[:, 1]) ./ fft(𝒦[:, 1])[1])
 ts = read(fid["space time kernel timelist"])
 close(fid)
 
@@ -45,7 +46,7 @@ labelsize = 40
 ms = 20
 options = (; titlesize=labelsize, ylabelsize=labelsize, xlabelsize=labelsize, xticklabelsize=labelsize, yticklabelsize=labelsize)
 wavenumbers = collect(0:0.5:64)
-new𝒦 = real.(fft(circshift(sum(𝒦, dims = 2)[:], -64) * ts[2]))
+new𝒦 = real.(fft(circshift(sum(𝒦, dims = 2)[:], -64) * ts[2])) # ./ scale
 
 indirect𝒦 = real.(fft(circshift(sum(𝒦st, dims = 2)[:], -41)))
 

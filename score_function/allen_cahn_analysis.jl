@@ -1,6 +1,6 @@
-include("allehn_cahn_model.jl")
+include("allen_cahn_model.jl")
 ##
-pv, sf = allehn_cahn()
+pv, sf = allen_cahn()
 lr = linear_response_function(pv)
 hsr = hack_score_response_function(pv, sf)
 
@@ -52,7 +52,7 @@ end
 ##
 i = 0
 for parameters in ProgressBar(parameters_list)
-    pv, sf = allehn_cahn(; parameters)
+    pv, sf = allen_cahn(; parameters)
     lr = linear_response_function(pv)
     hsr = hack_score_response_function(pv, sf)
 
@@ -78,7 +78,7 @@ end
 parameters_list[22]
 parameters_list[25]
 p = (; N = 32, Ne = 2^5, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
-pv, sf = allehn_cahn(; parameters = p)
+pv, sf = allen_cahn(; parameters = p)
 
 #=
 fig = Figure(resolution = (3*300, 3*300))
@@ -168,7 +168,7 @@ end
 
 ##
 p = (; N = 32, Ne = 2^5, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
-pv, sf = allehn_cahn(; parameters = p)
+pv, sf = allen_cahn(; parameters = p)
 ##
 fig = Figure(resolution = (3*300, 3*300))
 time_index = Observable(1)

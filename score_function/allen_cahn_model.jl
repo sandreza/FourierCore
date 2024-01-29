@@ -6,7 +6,7 @@ include("timestepping_utils.jl")
 returns timeseries and score function
 # parameters = (; N = 32, Ne = 2^5, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
 """
-function allehn_cahn(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/2, λ = 2e3, U = 0.04))
+function allen_cahn(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/2, λ = 2e3, U = 0.04))
     # model parameters
     ϵ² = parameters.ϵ² # square of noise strength
     κ = parameters.κ # diffusivity

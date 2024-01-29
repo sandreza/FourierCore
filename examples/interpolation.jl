@@ -26,3 +26,30 @@ function quick_interpolation(field)
     end
 
 end
+
+# assume 1d
+function quick_interpolation_1d(field; M = 256)
+    afield = Array(field)
+    Nx = size(field)[1]
+    N = Nx
+    interpolated_field = zeros(ComplexF64, M)
+    fouriedfield = fft(afield)
+    if N > M
+        indices1 = 1:div(M, 2)+1
+        indices2 = N-div(M, 2)+2:N
+        indices = [indices1..., indices2...]
+        vfield = view(fouriedfield, indices)
+        interpolated_field .= vfield
+        return real.(ifft(interpolated_field))
+    elseif N < M
+        indices1 = 1:div(N, 2)+1
+        indices2 = M-div(N, 2)+2:M
+        indices = [indices1..., indices2...]
+        vfield = view(interpolated_field, indices)
+        vfield .= fouriedfield
+        return real.(ifft(interpolated_field))
+    else
+        return real.(afield)
+    end
+
+end

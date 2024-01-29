@@ -10,9 +10,9 @@ include("transform.jl")
 include("random_phase_kernel.jl")
 # using GLMakie
 using CUDA
-arraytype = CuArray
+arraytype = Array
 Ω = S¹(2π)^2
-N = 2^9 # number of gridpoints
+N = 2^7 # number of gridpoints
 grid = FourierGrid(N, Ω, arraytype=arraytype)
 nodes, wavenumbers = grid.nodes, grid.wavenumbers
 

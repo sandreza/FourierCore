@@ -150,3 +150,132 @@ function hack_score_response_function(pixel_value, score_function; skip = 32, dt
     @info "Constructing Hack Response"
     return [hack_response[:, :, i] * C⁻¹ for i in ProgressBar(1:endindex)]
 end
+
+
+##
+function numerical_response(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/2, λ = 2e3, U = 0.04))
+    # model parameters
+    ϵ² = parameters.ϵ² # square of noise strength
+    κ = parameters.κ # diffusivity
+    λ = parameters.λ    # relaxation timescale for double-well
+    U = parameters.U   # Velocity
+
+    # numerical parameters 
+    N  = parameters.N # number of gridpoints
+    Ne = parameters.Ne # number of ensemble members
+
+    # temporal parameters 
+    start_time = 100
+
+    @info "Define domain and operators"
+    L = 2π # Domain Size: return time τ = L/U = 157 for default parameters
+    Ω = S¹(L)^2 × S¹(1) # Last Domain for "ensembles" 
+    grid = FourierGrid((N, N, Ne), Ω, arraytype = Array)
+    nodes, wavenumbers = grid.nodes, grid.wavenumbers
+    kx, ky, kz = wavenumbers
+    ∂x = im * kx
+    ∂y = im * ky
+    Δ = @. ∂x^2 + ∂y^2
+
+    # correlated noise
+    Σ = real.(ϵ² ./ (1 .- Δ)) 
+    Σ⁻¹ = 1 ./ Σ
+    Σhalf = sqrt.(Σ)
+
+    @info "Allocate Arrays"
+    θ = zeros(N, N, Ne) * im + randn(N, N, Ne)
+    P = plan_fft(θ, (1, 2))
+    P⁻¹ = plan_ifft(θ, (1, 2))
+    θ = real.(ifft(Σ .* fft(θ)))
+    θ ./= maximum(real.(θ))
+    rk = RungeKutta4(θ) 
+    rk_δ = RungeKutta4(θ) 
+
+    θ .= real.(ifft(Σ .* fft(θ)))
+    θ ./= maximum(real.(θ))
+
+    @info "Define Model"
+    # Define Model: closure on λ
+    function nonlinear_func(θ)
+        nonlinearity = @. λ * (1 - θ^2) * θ 
+        return nonlinearity
+    end
+    function rhs(θ)
+        nonlinearity = nonlinear_func(θ)
+        return real.(P⁻¹ * (Σ .* (P  * nonlinearity) +  (κ * Δ .- U * ∂x ) .* (P * (θ))) )
+    end
+    
+    @info "Timestepping"
+    NN = N 
+    dt = 1.0/NN
+    start_index = start_time * NN
+
+    @info "Initializing"
+    for i in ProgressBar(1:start_index)
+        # N^2 comes from fft of white. Could take fft then divide by "two" 
+        # the "two" due to imaginary part variance
+        rk(rhs, θ, dt)
+        noise = real.(sqrt(dt) * ( P⁻¹ * (N^2 * Σhalf .* (randn(N, N, Ne) .+ im * randn(N, N, Ne)))))
+        θ .= rk.xⁿ⁺¹ + noise 
+        if any(isnan.(θ))
+            println("NaN at iteration $i")
+            break
+        end
+    end
+
+    @info "Computing Numerical Response"
+    θ_δ = copy(θ)
+    δ = 2*dt
+    reset = 100*NN
+    reset_count = 0
+    numerical_response = zeros(N, N, reset)
+    for i in ProgressBar(1:reset * 100)
+        if (i-1)%(reset) == 0
+            reset_count += 1
+            θ_δ .= θ
+            θ_δ[1, 1, :] .+= δ
+        end
+        numerical_response[:, :, (i-1)%(reset) + 1] .+= real.(mean(θ_δ - θ, dims = 3))[:, :, 1] / δ
+        # N^2 comes from fft of white. Could take fft then divide by "two" 
+        # the "two" due to imaginary part variance
+        noise = real.(sqrt(dt) * ( P⁻¹ * (N^2 * Σhalf .* (randn(N, N, Ne) .+ im * randn(N, N, Ne)))))
+        rk(rhs, θ, dt)
+        θ .= rk.xⁿ⁺¹ + noise 
+        rk_δ(rhs, θ_δ, dt)
+        θ_δ .= rk_δ.xⁿ⁺¹ + noise 
+        if any(isnan.(θ))
+            println("NaN at iteration $i")
+            break
+        end
+    end
+
+    return numerical_response / reset_count
+end
+
+#
+parameters = (; N = 32, Ne = 2^5, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
+pv, sf = allen_cahn(; parameters)
+lr = linear_response_function(pv)
+hsr = hack_score_response_function(pv, sf)
+nr = numerical_response(; parameters)
+##
+fig = Figure(resolution = (772, 209))
+MM = 3
+N = 32
+lw = 3
+ts = collect(0:length(hsr)-1)
+for i in 1:4
+    indexchoice = i
+    ax = Axis(fig[1, i]; title = "1 -> " * string(indexchoice), xlabel = "time", ylabel = "response")
+    lines!(ax, ts, [reshape(lr[k][:, 1], (N, N))[indexchoice, 1] for k in eachindex(lr)], color = (:blue, 0.4), linewidth = lw, label = "linear")
+    lines!(ax, ts, [reshape(hsr[k][:, 1], (N, N))[indexchoice, 1] for k in eachindex(lr)], color = (:red, 0.4), linewidth = lw, label = "score")
+    scatter!(ax, ts[1:size(nr[indexchoice, 1, 1:32:end])[end]], nr[indexchoice, 1, 1:32:end], color = (:orange, 0.4), linewidth = lw, label = "perturbation")
+    if i == 1
+        axislegend(ax, position = :rt)
+    else
+        hideydecorations!(ax)
+    end
+    xlims!(ax, (0, 50))
+    ylims!(ax, (-0.15, 1.1))
+end
+display(fig) 

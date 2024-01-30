@@ -1,16 +1,16 @@
 f_amps = [50, 150, 300, 450, 750, 0.1, 1, 10, 0.01]
 νs = [sqrt(1e-5 / 2)]
 ν_hs = [sqrt(1e-3), sqrt(1e-4), sqrt(1e-2)]
-κ = 1e-3
+κ = 1e-4
 tic = Base.time()
 
-base_name = "larger_diff_ens_full_propagator_reguralized_"
+base_name = "smaller_diff_ens_full_propagator_reguralized_"
 N = 2^7
 N_ens = 2^7 # 2^7
 Ns = (N, N, N_ens)
 
-ii = 4 # forcing
-kk = 2 # hypo
+ii = 3 # forcing
+kk = 1 # hypo
 jj = 1 # hyper
 f_amp = f_amps[ii]
 ν = νs[jj]
@@ -115,7 +115,6 @@ parameters = (; auxiliary, operators, constants) # auxiliary was defined in init
 tend = 10
 iend = ceil(Int, tend / Δt)
 kernel = zeros(N, iend)
-kernel2 = zeros(N, iend)
 
 numloops = 100
 for kk in ProgressBar(1:numloops)
@@ -131,7 +130,6 @@ for kk in ProgressBar(1:numloops)
     t = [0.0]
     for i in ProgressBar(1:iend)
         kernel[:, i] .+= circshift(Array(real.(mean(u .* θ, dims = (2, 3)))), 64) / numloops
-        kernel2[:, i] .+= circshift(Array(real.(mean(v .* θ, dims = (2, 3)))), 64) / numloops
         step_2!(S, S̃, φ, φ̇, k₁, k₂, k₃, k₄, Δt, rng, t, parameters)
         @. sθ = (-u * ∂ˣθ - v * ∂ʸθ - ∂ˣuθ - ∂ʸvθ) * 0.5
         sθ .= -mean(sθ, dims = 3)
@@ -141,7 +139,6 @@ end
 
 fid = h5open(directory * filename * ".hdf5", "r+")
 fid["space time kernel"] = kernel
-fid["space time kernel 2"] = kernel2
 fid["space time kernel timelist"] = collect(0:iend-1) * Δt
 close(fid)
 
@@ -220,4 +217,3 @@ fid["more regularized space time kernel"] = kernel
 fid["more regularized space time kernel timelist"] = collect(0:iend-1) * Δt
 fid["kappa"] = κ 
 close(fid)
-

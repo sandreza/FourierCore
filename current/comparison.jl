@@ -1,4 +1,4 @@
-using GLMakie, HDF5
+using GLMakie, HDF5, FFTW
 
 # Grab propagator version
 directory = "/storage5/NonlocalPassiveTracers/Current/"
@@ -8,7 +8,7 @@ kk = 1 # hypo
 jj = 1 # hyper
 filename = base_name * string(ii) * "_" * string(jj) * "_" * string(kk)
 fid = h5open(directory * filename * ".hdf5", "r")
-𝒦 = read(fid["regularized space time kernel"])# read(fid["space time kernel"])
+𝒦 = read(fid["more iregularized space time kernel"])# read(fid["space time kernel"])
 scale = abs.(fft(𝒦[:, 1]) ./ fft(𝒦[:, 1])[1])
 ts = read(fid["space time kernel timelist"])
 close(fid)

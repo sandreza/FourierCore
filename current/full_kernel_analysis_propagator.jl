@@ -2,15 +2,16 @@ using GLMakie, HDF5
 
 directory = "/storage5/NonlocalPassiveTracers/Current/"
 base_name = "full_propagator_"
-base_name = "ens_full_propagator_reguralized_"
+base_name = "larger_diff_ens_full_propagator_reguralized_"# "ens_full_propagator_reguralized_"
 ii = 3 # forcing
 kk = 1 # hypo
 jj = 1 # hyper
 filename = base_name * string(ii) * "_" * string(jj) * "_" * string(kk)
 
 fid = h5open(directory * filename * ".hdf5", "r")
-𝒦 = read(fid["regularized space time kernel"]) #  read(fid["space time kernel"])
+𝒦 = read(fid["more regularized space time kernel"]) #  read(fid["space time kernel"])
 ts = read(fid["space time kernel timelist"])
+Δt = ts[2]
 close(fid)
 
 ##

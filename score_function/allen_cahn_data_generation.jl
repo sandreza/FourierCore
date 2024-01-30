@@ -3,7 +3,7 @@ include("allen_cahn_model.jl")
 ##
 # Strong Nonlinearity
 Random.seed!(1234)
-parameters = (; N = 32, Ne = 2^5, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
+parameters = (; N = 32, Ne = 2^7, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
 pv, sf = allen_cahn(; parameters)
 lr = linear_response_function(pv)
 hsr = hack_score_response_function(pv, sf)

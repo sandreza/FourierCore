@@ -29,3 +29,4 @@ for i in 1:4
     ylims!(ax, (-0.15, 1.1))
 end
 display(fig)
+save("responses.png", fig)

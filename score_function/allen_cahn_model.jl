@@ -18,7 +18,7 @@ function allen_cahn(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/
     Ne = parameters.Ne # number of ensemble members
 
     # temporal parameters 
-    start_time = 100
+    start_time = 1000
     end_time = 2000+start_time
 
     @info "Define domain and operators"
@@ -115,7 +115,7 @@ function linear_response_function(pixel_value; skip = 32, dt = 1/32)
     return response_function = [covmat[:, :, i] * C⁻¹ for i in ProgressBar(1:endindex)]
 end
 
-function score_response_function(pixel_value, score_function; skip = 32, dt = 1/32)
+function score_response_function(pixel_value, score_function::Function; skip = 32, dt = 1/32)
     N = size(pixel_value)[1]
     Ne = size(pixel_value)[3]
     endindex = size(pixel_value[:, :, :, 1:skip:end])[end]÷2
@@ -126,7 +126,9 @@ function score_response_function(pixel_value, score_function; skip = 32, dt = 1/
         score_values[:, :, :, ii] .= score_function(pixel_value[:, :, :, i])
     end
     @info "Computing Response Function"
-    for i in ProgressBar(1:Ne)   
+    for i in ProgressBar(1:Ne)    
+        # The N^2 is due to fft stuff
+        # The "two" is due to the Fokker-Planck equation having that factor of 1/2 in front of the diffusion term
         score_response_array .+= -real.(ifft(fft(pixel_value[:, :, i, 1:skip:end]) .* ifft(score_values[:, :, i, :]))[:, :, 1:endindex]/Ne/ (N^2/2))
     end
     return score_response_array
@@ -151,9 +153,7 @@ function hack_score_response_function(pixel_value, score_function; skip = 32, dt
     return [hack_response[:, :, i] * C⁻¹ for i in ProgressBar(1:endindex)]
 end
 
-
-##
-function numerical_response(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/2, λ = 2e3, U = 0.04))
+function numerical_response(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/2, λ = 2e3, U = 0.04), reset_scale = 100)
     # model parameters
     ϵ² = parameters.ϵ² # square of noise strength
     κ = parameters.κ # diffusivity
@@ -165,7 +165,8 @@ function numerical_response(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ
     Ne = parameters.Ne # number of ensemble members
 
     # temporal parameters 
-    start_time = 100
+    start_time = 1000 # physical timestep to for statistically steady state
+    reset_scale # the number of decorrelation time scales to reset the perturbation
 
     @info "Define domain and operators"
     L = 2π # Domain Size: return time τ = L/U = 157 for default parameters
@@ -229,7 +230,7 @@ function numerical_response(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ
     reset = 100*NN
     reset_count = 0
     numerical_response = zeros(N, N, reset)
-    for i in ProgressBar(1:reset * 100)
+    for i in ProgressBar(1:reset * reset_scale)
         if (i-1)%(reset) == 0
             reset_count += 1
             θ_δ .= θ
@@ -252,30 +253,3 @@ function numerical_response(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ
     return numerical_response / reset_count
 end
 
-#
-parameters = (; N = 32, Ne = 2^5, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
-pv, sf = allen_cahn(; parameters)
-lr = linear_response_function(pv)
-hsr = hack_score_response_function(pv, sf)
-nr = numerical_response(; parameters)
-##
-fig = Figure(resolution = (772, 209))
-MM = 3
-N = 32
-lw = 3
-ts = collect(0:length(hsr)-1)
-for i in 1:4
-    indexchoice = i
-    ax = Axis(fig[1, i]; title = "1 -> " * string(indexchoice), xlabel = "time", ylabel = "response")
-    lines!(ax, ts, [reshape(lr[k][:, 1], (N, N))[indexchoice, 1] for k in eachindex(lr)], color = (:blue, 0.4), linewidth = lw, label = "linear")
-    lines!(ax, ts, [reshape(hsr[k][:, 1], (N, N))[indexchoice, 1] for k in eachindex(lr)], color = (:red, 0.4), linewidth = lw, label = "score")
-    scatter!(ax, ts[1:size(nr[indexchoice, 1, 1:32:end])[end]], nr[indexchoice, 1, 1:32:end], color = (:orange, 0.4), linewidth = lw, label = "perturbation")
-    if i == 1
-        axislegend(ax, position = :rt)
-    else
-        hideydecorations!(ax)
-    end
-    xlims!(ax, (0, 50))
-    ylims!(ax, (-0.15, 1.1))
-end
-display(fig) 

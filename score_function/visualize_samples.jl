@@ -14,6 +14,7 @@ timeseries_shape = read(hfile["timeseries shape"] )
 close(hfile)
 scale_factor = 2
 r_snapshots = reshape(snapshots, (snapshots_shape[1], snapshots_shape[2], snapshots_shape[4], snapshots_shape[5])) * scale_factor;
+r_timeseries = reshape(timeseries, (timeseries_shape[1], timeseries_shape[2], timeseries_shape[4], timeseries_shape[5])) * scale_factor;
 ##
 fig = Figure(resolution = (1240, 556))
 MM = 4
@@ -34,3 +35,16 @@ hist!(ax, samples[:] * 2, bins = 1000, normalization = :pdf)
 xlims!(ax, (-3, 3))
 ylims!(ax, (0, 0.7))
 display(fig)
+save("samples_vs_data.png", fig)
+##
+fig = Figure(resolution = (1240, 556))
+for i in 1:8
+    indexchoice = i
+    ii = (i-1)÷4 + 1
+    jj = (i-1)%4 + 1
+    skip_index = 10 * (i-1) + 1 
+    ax = Axis(fig[ii, jj]; title = "t = $(skip_index-1)")
+    heatmap!(ax, r_timeseries[:, :, 31, skip_index], colorrange = (-2, 2), colormap = :balance, interpolate = true)
+end
+display(fig)
+save("timeseries.png", fig)

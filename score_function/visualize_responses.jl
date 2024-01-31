@@ -29,6 +29,9 @@ for i in 1:4
     ylims!(ax, (-0.15, 1.1))
 end
 display(fig)
+[norm(l_a_numerical_response[i, 1, 1:50] - l_a_generative_response[i, 1, 1:50]) for i in 1:4]
+[norm(l_a_numerical_response[i, 1, 1:50] - l_a_hack_score_response[i, 1, 1:50]) for i in 1:4]
+[norm(l_a_numerical_response[i, 1, 1:50] - l_a_linear_response[i, 1, 1:50]) for i in 1:4]
 save("nonlinear_responses.png", fig)
 
 ##
@@ -62,6 +65,9 @@ for i in 1:4
     xlims!(ax, (0, 50))
     ylims!(ax, (-0.15, 1.1))
 end
+[norm(l_a_numerical_response[i, 1, 1:50] - l_a_generative_response[i, 1, 1:50]) for i in 1:4]
+[norm(l_a_numerical_response[i, 1, 1:50] - l_a_hack_score_response[i, 1, 1:50]) for i in 1:4]
+[norm(l_a_numerical_response[i, 1, 1:50] - l_a_linear_response[i, 1, 1:50]) for i in 1:4]
 display(fig2)
 save("linear_responses.png", fig2)
 

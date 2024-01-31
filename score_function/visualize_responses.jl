@@ -1,9 +1,11 @@
-using GLMakie, HDF5
+using GLMakie, HDF5, LinearAlgebra
 
-hfile = h5open("data_0.0_0.0_1.0_66.0_responses.hdf5", "r")
+hfile = h5open("data_1.0_0.0_0.0_0.0_responses.hdf5", "r")
 a_linear_response = read(hfile["linear response"])
 a_hack_score_response = read(hfile["exact score response"])
 a_numerical_response = read(hfile["perturbation response"])
+close(hfile)
+hfile = h5open("data_1.0_0.0_0.0_0.0_generative_response.hdf5", "r")
 a_generative_response = read(hfile["generative response"])
 close(hfile)
 
@@ -18,7 +20,7 @@ for i in 1:4
     ax = Axis(fig[ii, jj]; title = "1 -> " * string(indexchoice), xlabel = "time", ylabel = "response")
     lines!(ax, ts, a_linear_response[i, 1, :], color = (:blue, 0.4), linewidth = lw, label = "linear")
     lines!(ax, ts, a_hack_score_response[i, 1, :], color = (:red, 0.4), linewidth = lw, label = "score")
-    # lines!(ax, ts, a_generative_response[i, 1, :], color = (:green, 0.4), linewidth = lw, label = "generative")
+    lines!(ax, ts, a_generative_response[i, 1, 1:100], color = (:green, 0.4), linewidth = lw, label = "generative")
     scatter!(ax,ts, a_numerical_response[i, 1, :], color = (:orange, 0.4), linewidth = lw, label = "perturbation")
     if i == 1
         axislegend(ax, position = :rt)
@@ -29,9 +31,9 @@ for i in 1:4
     ylims!(ax, (-0.15, 1.1))
 end
 display(fig)
-[norm(l_a_numerical_response[i, 1, 1:50] - l_a_generative_response[i, 1, 1:50]) for i in 1:4]
-[norm(l_a_numerical_response[i, 1, 1:50] - l_a_hack_score_response[i, 1, 1:50]) for i in 1:4]
-[norm(l_a_numerical_response[i, 1, 1:50] - l_a_linear_response[i, 1, 1:50]) for i in 1:4]
+[norm(a_numerical_response[i, 1, 1:50] - a_generative_response[i, 1, 1:50]) for i in 1:4]
+[norm(a_numerical_response[i, 1, 1:50] - a_hack_score_response[i, 1, 1:50]) for i in 1:4]
+[norm(a_numerical_response[i, 1, 1:50] - a_linear_response[i, 1, 1:50]) for i in 1:4]
 save("nonlinear_responses.png", fig)
 
 ##

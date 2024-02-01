@@ -66,7 +66,11 @@ function allen_cahn(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/
     pixel_value = zeros(N, N, Ne, iterations - start_index)
 
     for i in ProgressBar(1:iterations)
-        # N^2 comes from fft of white. Could take fft then divide by "two" 
+        # The noise could also be implemented as 
+        # noise = (√N)^2 * (P⁻¹ * (Σhalf .* (P * (randn(N, N, Ne)))
+        # the first term is comes from the spatial delta function in two dimensions
+        # e.g. ⟨ξ(x,y, t) ξ(x', y', t')⟩ = δ(x-x') δ(y-y') δ(t-t')
+        # The latter is the fft of white noise 
         # the "two" due to imaginary part variance
         rk(rhs, θ, dt)
         noise = real.(sqrt(dt) * ( P⁻¹ * (N^2 * Σhalf .* (randn(N, N, Ne) .+ im * randn(N, N, Ne)))))
@@ -115,7 +119,7 @@ function linear_response_function(pixel_value; skip = 32, dt = 1/32)
     return response_function = [covmat[:, :, i] * C⁻¹ for i in ProgressBar(1:endindex)]
 end
 
-function score_response_function(pixel_value, score_function::Function; skip = 32, dt = 1/32)
+function score_function(pixel_value, score_function::Function; skip = 32, dt = 1/32)
     N = size(pixel_value)[1]
     Ne = size(pixel_value)[3]
     endindex = size(pixel_value[:, :, :, 1:skip:end])[end]÷2
@@ -253,3 +257,61 @@ function numerical_response(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ
     return numerical_response / reset_count
 end
 
+function allen_cahn_score(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/2, λ = 2e3, U = 0.04))
+    # model parameters
+    ϵ² = parameters.ϵ² # square of noise strength
+    κ = parameters.κ # diffusivity
+    λ = parameters.λ    # relaxation timescale for double-well
+    U = parameters.U   # Velocity
+
+    # numerical parameters 
+    N  = parameters.N # number of gridpoints
+    Ne = parameters.Ne # number of ensemble members
+
+    # temporal parameters 
+    start_time = 1000
+    end_time = 2000+start_time
+
+    @info "Define domain and operators"
+    L = 2π # Domain Size: return time τ = L/U = 157 for default parameters
+    Ω = S¹(L)^2 × S¹(1) # Last Domain for "ensembles" 
+    grid = FourierGrid((N, N, Ne), Ω, arraytype = Array)
+    nodes, wavenumbers = grid.nodes, grid.wavenumbers
+    kx, ky, kz = wavenumbers
+    ∂x = im * kx
+    ∂y = im * ky
+    Δ = @. ∂x^2 + ∂y^2
+
+    # correlated noise
+    Σ = real.(ϵ² ./ (1 .- Δ)) 
+    Σ⁻¹ = 1 ./ Σ
+
+    @info "Allocate Arrays"
+    θ = zeros(N, N, Ne) * im + randn(N, N, Ne)
+    P = plan_fft(θ, (1, 2))
+    P⁻¹ = plan_ifft(θ, (1, 2))
+    θ = real.(ifft(Σ .* fft(θ)))
+    θ ./= maximum(real.(θ))
+    rk = RungeKutta4(θ) 
+
+    θ .= real.(ifft(Σ .* fft(θ)))
+    θ ./= maximum(real.(θ))
+
+    @info "Define Model"
+    # Define Model: closure on λ
+    function nonlinear_func(θ)
+        nonlinearity = @. λ * (1 - θ^2) * θ 
+        return nonlinearity
+    end
+    function rhs(θ)
+        nonlinearity = nonlinear_func(θ)
+        return real.(P⁻¹ * (Σ .* (P  * nonlinearity) +  (κ * Δ .- U * ∂x ) .* (P * (θ))) )
+    end
+
+    function score_function(θ)
+        nonlinearity = nonlinear_func(θ)
+        return  real.(nonlinearity + P⁻¹ * (Σ⁻¹ .* (κ * Δ) .* (P * θ)))
+    end
+
+    return score_function
+end

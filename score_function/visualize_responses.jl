@@ -13,7 +13,7 @@ fig = Figure(resolution = (777, 233))
 N = 32
 lw = 3
 ts = collect(0:99)
-for i in 1:4
+for i in 1:16
     indexchoice = i
     ii = (i-1)÷4 + 1
     jj = (i-1)%4 + 1
@@ -27,7 +27,7 @@ for i in 1:4
     else
         hideydecorations!(ax)
     end
-    xlims!(ax, (0, 50))
+    xlims!(ax, (0, 100))
     ylims!(ax, (-0.15, 1.1))
 end
 display(fig)

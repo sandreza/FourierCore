@@ -4,7 +4,7 @@ using FFTW, LinearAlgebra, BenchmarkTools, Random, HDF5, ProgressBars, Statistic
 using CUDA
 arraytype = CuArray
 N = 32
-Ns = (N, N , 128)
+Ns = (N, N , 2048)
 
 rng = MersenneTwister(12345)
 Random.seed!(12)

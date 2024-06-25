@@ -1,9 +1,10 @@
 @info "initializing fields"
 using FourierCore, FourierCore.Grid, FourierCore.Domain
 using FFTW, LinearAlgebra, BenchmarkTools, Random, HDF5, ProgressBars, Statistics
-arraytype = Array
+using CUDA
+arraytype = CuArray
 N = 32
-Ns = (N, N , 4)
+Ns = (N, N , 128)
 
 rng = MersenneTwister(12345)
 Random.seed!(12)

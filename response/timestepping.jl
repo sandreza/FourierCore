@@ -25,7 +25,7 @@ function rhs!(Ṡ, S, t, parameters)
     @. 𝒟ζ = 𝒟ν * ζ
     # go back to real space 
     P⁻¹ * u
-    u .+= 1.0
+    u .+= π
     P⁻¹ * v
     P⁻¹ * ζ
     P⁻¹ * ∂ˣζ
@@ -45,7 +45,9 @@ function rhs!(Ṡ, S, t, parameters)
     P⁻¹ * ∂ʸvζ
 
     # rhs
-    @. ζ̇ = real((-u * ∂ˣζ - v * ∂ʸζ - ∂ˣuζ - ∂ʸvζ) * 0.5 + 𝒟ζ + sζ)
+    ζ̄ = mean(ζ, dims = (1,2))
+    s̄ = mean(sζ, dims = (1,2))
+    @. ζ̇ = real((-u * ∂ˣζ - v * ∂ʸζ - ∂ˣuζ - ∂ʸvζ) * 0.5 + 𝒟ζ + sζ - 0.9 * s̄ - ζ̄)
     @. S = real(S)
     @. Ṡ = real(Ṡ)
 

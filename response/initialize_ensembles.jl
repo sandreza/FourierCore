@@ -16,7 +16,7 @@ end
 ##
 # time
 t = [0.0]  
-tend = 2^12
+tend = 2^8
 include("initialize_fields.jl") 
 ζs = Array{ComplexF64, 3}[]
 ζ .= ζ1
@@ -31,7 +31,7 @@ end
 include("initialize_fields.jl") 
 ζs_δ = Array{ComplexF64, 3}[]
 ζ .= ζ1
-δ = 10 * Δt
+δ = 2 * Δt
 ζ[1, 1, :] .+= δ
 for i in ProgressBar(1:tend)
     push!(ζs_δ, Array(copy(ζ)))
@@ -66,15 +66,21 @@ display(fig)
 ##
 Nt = length(ζs)
 trj = zeros(Ns[1] * Ns[2], Ns[3]*Nt)
-for i in 1:Nt
+trj2 = zeros(Ns[1], Ns[2], Ns[3], Nt)
+for i in ProgressBar(1:Nt)
     trj[:, (i-1)*Ns[3] .+ 1:i*Ns[3]] .= real.(reshape(ζs[i][:], (Ns[1] * Ns[2], Ns[3])))
+    trj2[:, :, :, i] .= real.(ζs[i])
 end
 
-C0 = cov(trj')
+include("utils.jl")
 
-ll, vv = eigen(C0)
-a, s, b = svd(C0)
-sum((s / s[1]) .> eps(100000.0))
-scatter(ll)
-heatmap(reshape(a[:,6], (32, 32)))
-inv(C0) * C0
+
+rf = linear_response_function(trj2; skip = 1)
+R₁₁_linear = [rf[i][1,1] for i in eachindex(rf)]
+##
+fig = Figure()
+ax = Axis(fig[1,1])
+scatter!(ax, R₁₁, label = "Dynamic", color = :blue)
+lines!(ax, R₁₁_linear, label = "Linear", color = :orange)
+axislegend(ax, position = :rt, labelsize = 10)
+display(fig)

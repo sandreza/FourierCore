@@ -1,3 +1,4 @@
+CUDA.allowscalar(true) 
 # operators
 ∂x = im * kˣ
 ∂y = im * kʸ
@@ -31,10 +32,10 @@ kxmax = maximum(kˣ)
 kymax = maximum(kʸ)
 kmax = maximum([kxmax, kymax])
 kmax = 30.0
-waver2 = @. (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2)
+waver2 = @. ( (kˣ)^2 + (kʸ)^2 ≤ ((kxmax / 2)^2 + (kymax / 2)^2) )
 # waver2 = @. abs(kˣ) .+ 0 * abs(kʸ) ≤ kmax
 # @. waver2 = waver2 * (0 * abs(kˣ) .+ 1 * abs(kʸ) ≤  kmax)
-waver2[1, 1] = 0.0
+# waver2[1, 1] = 0.0
 waver2[:, floor(Int, N / 2)+1] .= 0.0
 waver2[floor(Int, N / 2)+1, :] .= 0.0
 waver .= waver2

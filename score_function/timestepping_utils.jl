@@ -5,6 +5,7 @@ struct RungeKutta4{S, T}
 end
 RungeKutta4(n::Int) = RungeKutta4(zeros(n,4), zeros(n), zeros(n))
 RungeKutta4(x::Array) = RungeKutta4([similar(x) for i in 1:4], similar(x), similar(x))
+RungeKutta4(x::CuArray) = RungeKutta4([similar(x) for i in 1:4], similar(x), similar(x))
 function (step::RungeKutta4)(f, x, dt)
     @inbounds let
     @. step.x̃ = x

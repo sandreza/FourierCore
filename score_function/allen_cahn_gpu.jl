@@ -1,13 +1,15 @@
-using GLMakie, JLD2, FFTW, Statistics, ProgressBars
+using GLMakie
+using  JLD2, FFTW, Statistics, ProgressBars
 using FourierCore, FourierCore.Grid, FourierCore.Domain, Printf, LinearAlgebra
-using Random, HDF5, LinearAlgebra
+using Random, HDF5, LinearAlgebra, CUDA
 include("timestepping_utils.jl")
+# include("score_function/timestepping_utils.jl")
 
 """
 returns timeseries
 # parameters = (; N = 32, Ne = 2^5, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
 """
-function allen_cahn_timeseries(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/2, λ = 2e3, U = 0.04), dt_scale = 1, skip = 32, start_time = 1000, end_time = 2000)
+function allen_cahn_timeseries(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004, κ = 1e-3/2, λ = 2e3, U = 0.04), dt_scale = 1, skip = 32, start_time = 1000, end_time = 2000, array = Array)
     # model parameters
     ϵ² = parameters.ϵ² # square of noise strength
     κ = parameters.κ # diffusivity
@@ -23,7 +25,7 @@ function allen_cahn_timeseries(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004,
     @info "Define domain and operators"
     L = 2π # Domain Size: return time τ = L/U = 157 for default parameters
     Ω = S¹(L)^2 × S¹(1) # Last Domain for "ensembles" 
-    grid = FourierGrid((N, N, Ne), Ω, arraytype = Array)
+    grid = FourierGrid((N, N, Ne), Ω, arraytype = array)
     nodes, wavenumbers = grid.nodes, grid.wavenumbers
     kx, ky, kz = wavenumbers
     ∂x = im * kx
@@ -36,7 +38,7 @@ function allen_cahn_timeseries(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004,
     Σhalf = sqrt.(Σ)
 
     @info "Allocate Arrays"
-    θ = zeros(N, N, Ne) * im + randn(N, N, Ne)
+    θ = array(zeros(N, N, Ne) * im + randn(N, N, Ne))
     P = plan_fft(θ, (1, 2))
     P⁻¹ = plan_ifft(θ, (1, 2))
     θ = real.(ifft(Σ .* fft(θ)))
@@ -80,15 +82,17 @@ function allen_cahn_timeseries(; parameters = (; N = 32, Ne = 2^2, ϵ² = 0.004,
         # The latter is the fft of white noise 
         # the "two" due to imaginary part variance
         rk(rhs, θ, dt)
-        noise = real.(sqrt(dt) * ( P⁻¹ * (N^2 * Σhalf .* (randn(N, N, Ne) .+ im * randn(N, N, Ne)))))
+        noise = real.(sqrt(dt) * ( P⁻¹ * (N^2 * Σhalf .* array(randn(N, N, Ne) .+ im * randn(N, N, Ne)))))
         θ .= rk.xⁿ⁺¹ + noise 
-        if any(isnan.(θ))
-            println("NaN at iteration $i")
-            break
+        if (i%10 == 0)
+            if any(isnan.(θ))
+                println("NaN at iteration $i")
+                break
+            end
         end
         if (i > start_index) && ((i-1) % skip == 0)
             j_global += 1
-            pixel_value[:, :, :, j_global] .= real.(θ) 
+            pixel_value[:, :, :, j_global] .= Array(real.(θ) )
         end
     end
 
@@ -98,8 +102,8 @@ end
 ##
 # Strong Nonlinearity
 Random.seed!(1234)
-parameters = (; N = 128, Ne = 2^0, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
-pv = allen_cahn_timeseries(; parameters, dt_scale = 5, skip = 128, start_time = 1000, end_time = 1250)
+parameters = (; N = 128*8, Ne = 2^0, ϵ² = 0.004, κ = 1e-3/4, U = 0.02, λ = 4e3)
+pv = allen_cahn_timeseries(; parameters, dt_scale = 1, skip = 128, start_time = 1000, end_time = 1250, array = CuArray)
 
 ##
 fig = Figure()

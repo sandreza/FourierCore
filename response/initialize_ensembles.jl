@@ -6,7 +6,7 @@ include("initialize_operators.jl")
 parameters = (; auxiliary, operators, constants) 
 # time
 t = [0.0]  
-tend = 2^18
+tend = 2^16
 
 for i in ProgressBar(1:tend)
     t[1] += Δt
@@ -16,7 +16,7 @@ end
 ##
 # time
 t = [0.0]  
-tend = 2^8
+tend = 2^12
 include("initialize_fields.jl") 
 ζs = Array{ComplexF64, 3}[]
 ζ .= ζ1
@@ -49,3 +49,32 @@ maximum(Rᵢⱼ[end])
 extrema(real.(ζ)[:,:,1])
 using GLMakie
 heatmap(real.(ζ)[:,:,1], colormap = :balance, colorrange = (-2,2), interpolate =true)
+##
+
+Nplot = 5
+tinds = round.(Int, range(1, tend, length = Nplot^2))
+fig = Figure()
+for i in 1:Nplot^2
+    ii = (i-1)÷Nplot + 1
+    jj = (i-1)%Nplot + 1
+    ax = Axis(fig[ii,jj])
+    heatmap!(ax, Rᵢⱼ[tinds[i]], colormap = :balance, colorrange = (-1,1), interpolate = true)
+end
+display(fig)
+
+
+##
+Nt = length(ζs)
+trj = zeros(Ns[1] * Ns[2], Ns[3]*Nt)
+for i in 1:Nt
+    trj[:, (i-1)*Ns[3] .+ 1:i*Ns[3]] .= real.(reshape(ζs[i][:], (Ns[1] * Ns[2], Ns[3])))
+end
+
+C0 = cov(trj')
+
+ll, vv = eigen(C0)
+a, s, b = svd(C0)
+sum((s / s[1]) .> eps(100000.0))
+scatter(ll)
+heatmap(reshape(a[:,6], (32, 32)))
+inv(C0) * C0

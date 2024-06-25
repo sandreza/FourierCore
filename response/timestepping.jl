@@ -25,7 +25,7 @@ function rhs!(Ṡ, S, t, parameters)
     @. 𝒟ζ = 𝒟ν * ζ
     # go back to real space 
     P⁻¹ * u
-    u .+= 0.5
+    u .+= 1.0
     P⁻¹ * v
     P⁻¹ * ζ
     P⁻¹ * ∂ˣζ
